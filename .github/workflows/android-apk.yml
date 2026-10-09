@@ -47,7 +47,17 @@ jobs:
           echo "$KEY_PROPERTIES" > android/key.properties
 
       - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Build APK
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee build.log
+      - name: Report build errors
+        if: failure()
+        run: |
+          # Surface compiler errors as annotations (readable from the run page and the API)
+          grep -E "error|Error:|What went wrong|Exception" build.log | grep -v "^\s*$" | head -120 > errs.txt || true
+          split -l 12 errs.txt chunk_ || true
+          for f in chunk_*; do msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' "$f"); echo "::error title=build::$msg"; done
       - run: flutter build appbundle --release
 
       - name: Rename outputs
