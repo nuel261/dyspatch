@@ -81,3 +81,7 @@ void toast(BuildContext context, String message, {bool error = false}) {
       behavior: SnackBarBehavior.floating,
     ));
 }
+
+/// Unambiguous aliases for use inside classes that have fields named timeAgo/statusColor.
+String formatTimeAgo(DateTime? d) => timeAgo(d);
+Color colorForStatus(String status) => statusColor(status);

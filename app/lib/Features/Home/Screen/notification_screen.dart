@@ -32,7 +32,7 @@ class AppNotification {
       category: switch (j['category']) { 'delivery' => NotifCategory.deliveries, 'payment' => NotifCategory.payments, _ => NotifCategory.system },
       title: (j['title'] ?? '') as String,
       subtitle: j['body'] as String?,
-      timeAgo: timeAgo(when),
+      timeAgo: formatTimeAgo(when),
       dateGroup: dayGroup(when),
       isRead: j['is_read'] == true,
       trackId: data['track_id'] as String?,

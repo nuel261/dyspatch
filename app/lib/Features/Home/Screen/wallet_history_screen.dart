@@ -34,7 +34,7 @@ class WalletHistoryEntry {
       type: type,
       title: (j['title'] ?? '') as String,
       description: '$desc · $amount${j['track_id'] != null ? '\nTrack ID ${j['track_id']}' : ''}',
-      timeAgo: timeAgo(when),
+      timeAgo: formatTimeAgo(when),
       dateGroup: dayGroup(when),
     );
   }

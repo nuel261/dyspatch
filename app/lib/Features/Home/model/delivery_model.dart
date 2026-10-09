@@ -47,7 +47,7 @@ class DeliveryModel {
       route: (j['route'] ?? '') as String,
       status: (j['status_label'] ?? status) as String,
       statusKey: status,
-      statusColor: statusColor(status),
+      statusColor: colorForStatus(status),
       orderId: 'Order ${j['order_no'] ?? ''}',
       rider: (j['rider_name'] as String?) ?? (status == 'pending' ? 'Finding rider…' : '—'),
       eta: eta,
