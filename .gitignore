@@ -1,0 +1,11 @@
+# Secrets — never commit
+**/key.properties
+**/*.jks
+**/*.keystore
+backend/config/config.php
+backend/storage/logs/*.log
+backend/storage/cache/*
+!backend/storage/cache/.htaccess
+backend/storage/uploads/*
+!backend/storage/uploads/.htaccess
+.DS_Store

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "251810832504",
+    "project_id": "dyspatch-bc9cc",
+    "storage_bucket": "dyspatch-bc9cc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:251810832504:android:3347f68f4f418d1e43cd8d",
+        "android_client_info": {
+          "package_name": "com.dyspatch.delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3KlFZN-YcdCjBEdvelLAAjKTh4zGaQZI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
