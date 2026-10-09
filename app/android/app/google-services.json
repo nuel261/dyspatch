@@ -12,7 +12,20 @@
           "package_name": "com.dyspatch.delivery"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "251810832504-5q41auhn8q3c68i4tcq56flicrc8i19o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dyspatch.delivery",
+            "certificate_hash": "0d22c197c5e1052d977620aecbe4578725a46cc6"
+          }
+        },
+        {
+          "client_id": "251810832504-279kinvj3gcmvdt0lmcuainntghq38ma.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD3KlFZN-YcdCjBEdvelLAAjKTh4zGaQZI"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "251810832504-279kinvj3gcmvdt0lmcuainntghq38ma.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "251810832504-alt1vbaf6eighg1cpaki3bu2bm6sgi1o.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.dyspatch.delivery"
+              }
+            }
+          ]
         }
       }
     }
