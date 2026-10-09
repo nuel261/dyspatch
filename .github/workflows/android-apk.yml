@@ -37,7 +37,12 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::Add the ANDROID_KEYSTORE_BASE64 and ANDROID_KEY_PROPERTIES repository secrets"; exit 1; fi
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 / ANDROID_KEY_PROPERTIES secrets not set — building a TEST APK signed with the debug key (not for Play Store)"
+            echo "SIGNING=debug" >> $GITHUB_ENV
+            exit 0
+          fi
+          echo "SIGNING=release" >> $GITHUB_ENV
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
           echo "$KEY_PROPERTIES" > android/key.properties
 
@@ -49,8 +54,8 @@ jobs:
         run: |
           V=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr '+' '-')
           mkdir -p ../dist
-          cp build/app/outputs/flutter-apk/app-release.apk ../dist/dyspatch-$V.apk
-          cp build/app/outputs/bundle/release/app-release.aab ../dist/dyspatch-$V.aab
+          cp build/app/outputs/flutter-apk/app-release.apk ../dist/dyspatch-$V-$SIGNING.apk
+          cp build/app/outputs/bundle/release/app-release.aab ../dist/dyspatch-$V-$SIGNING.aab
 
       - uses: actions/upload-artifact@v4
         with:
