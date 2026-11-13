@@ -1,0 +1,118 @@
+name: iOS → TestFlight (testing only)
+
+# Builds the customer app and/or the rider app for iOS and uploads them to
+# TestFlight. Nothing here submits to the App Store: builds only go to testers.
+#
+# Repository secrets needed (Settings → Secrets and variables → Actions):
+#   APPLE_TEAM_ID        10-character Team ID (developer.apple.com → Membership)
+#   ASC_KEY_ID           App Store Connect API key ID
+#   ASC_ISSUER_ID        App Store Connect API issuer ID
+#   ASC_KEY_P8_BASE64    the downloaded AuthKey_XXXX.p8, base64-encoded
+# The API key must have the Admin role so Xcode can create the signing
+# certificate and provisioning profiles in the cloud.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Which app to upload
+        type: choice
+        options: [both, customer, rider]
+        default: both
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: customer
+            dir: app
+            bundle: com.dyspatch.delivery
+          - name: rider
+            dir: rider
+            bundle: com.dyspatch.rider
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - name: Skip if not selected
+        id: sel
+        working-directory: .
+        run: |
+          if [ "${{ inputs.app }}" = "both" ] || [ "${{ inputs.app }}" = "${{ matrix.name }}" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "go=0" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/checkout@v5
+        if: steps.sel.outputs.go == '1'
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: steps.sel.outputs.go == '1'
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@v2
+        if: steps.sel.outputs.go == '1'
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Check secrets
+        if: steps.sel.outputs.go == '1'
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          for v in TEAM KID ISS P8; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v (APPLE_TEAM_ID / ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8_BASE64)"; exit 1; fi
+          done
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$P8" | base64 --decode > "$RUNNER_TEMP/asc/AuthKey.p8"
+
+      - name: Flutter build (no signing yet)
+        if: steps.sel.outputs.go == '1'
+        run: |
+          flutter pub get
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Archive (automatic cloud signing)
+        if: steps.sel.outputs.go == '1'
+        run: |
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
+            | xcpretty || exit ${PIPESTATUS[0]}
+
+      - name: Export and upload to TestFlight
+        if: steps.sel.outputs.go == '1'
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }}
+          echo "### ${{ matrix.name }} (${{ matrix.bundle }}) build ${{ github.run_number }} uploaded to TestFlight" >> "$GITHUB_STEP_SUMMARY"
