@@ -26,6 +26,7 @@ $groups = [
     ]],
     'otp' => ['OTP & security', 'shield', [
         ['otp_length', 'OTP length', 'int'], ['otp_expiry_minutes', 'OTP expiry (minutes)', 'int'], ['otp_max_attempts', 'Lock after failed attempts', 'int'], ['otp_resend_seconds', 'Resend cooldown (seconds)', 'int'],
+        ['review_phones', 'App review test numbers (comma-separated; no SMS is sent)', 'text'], ['review_otp', 'Fixed code for those numbers', 'text'],
     ]],
     'wallet' => ['Wallet & withdrawals', 'wallet', [
         ['topup_bank_name', 'Top-up bank name', 'text'], ['topup_account_name', 'Top-up account name', 'text'], ['topup_account_number', 'Top-up account number', 'text'],

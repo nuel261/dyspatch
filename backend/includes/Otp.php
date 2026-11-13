@@ -16,17 +16,35 @@ final class Otp
 
         $len = Settings::int('otp_length', 4);
         $mins = Settings::int('otp_expiry_minutes', 30);
-        $code = digits($len);
+        $review = self::reviewCode($phone);
+        $code = $review ?? digits($len);
         DB::insert('otps', [
             'phone' => $phone, 'purpose' => $purpose, 'code_hash' => password_hash($code, PASSWORD_DEFAULT),
             'expires_at' => date('Y-m-d H:i:s', time() + $mins * 60),
         ]);
+        if ($review !== null) {
+            // App Store / Play review account: fixed code, nothing is sent.
+            return ['expires_in' => $mins * 60, 'length' => strlen($review), 'resend_in' => $resend, 'debug_code' => null];
+        }
         Sms::send($phone, "Your Dyspatch code is $code. It expires in $mins minutes. Never share it with anyone.");
         if ($email) {
             Mailer::send($email, 'Your Dyspatch verification code', Mailer::template('Your verification code',
                 "Use this code to continue. It expires in $mins minutes. If you didn't request it, you can ignore this email.", null, null, $code));
         }
         return ['expires_in' => $mins * 60, 'length' => $len, 'resend_in' => $resend, 'debug_code' => Sms::isLive() ? null : $code];
+    }
+
+    /** Fixed code for the store-review test numbers set in Admin → Settings → OTP & security. */
+    private static function reviewCode(string $phone): ?string
+    {
+        $code = trim((string) Settings::get('review_otp', ''));
+        $list = trim((string) Settings::get('review_phones', ''));
+        if ($code === '' || $list === '' || !ctype_digit($code)) return null;
+        $tail = static fn(string $p): string => substr(preg_replace('/\D/', '', $p), -10);
+        foreach (preg_split('/[\s,;]+/', $list) as $p) {
+            if ($p !== '' && strlen($tail($p)) === 10 && $tail($p) === $tail($phone)) return $code;
+        }
+        return null;
     }
 
     public static function verify(string $phone, string $code, string $purpose = 'login'): void
