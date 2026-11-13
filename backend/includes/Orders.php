@@ -195,15 +195,16 @@ final class Orders
 
             if ($status === 'delivered') self::settle(array_merge($o, $upd));
             if ($status === 'cancelled') self::refund($o, $note ?: 'Order cancelled');
-            if (in_array($status, ['cancelled', 'pending', 'failed'], true)) {
-                DB::query("UPDATE order_offers SET status = 'withdrawn', responded_at = NOW() WHERE order_id = ? AND status = 'offered'", [$orderId]);
-            }
+            if (in_array($status, ['cancelled', 'pending', 'failed'], true)) Matching::withdrawOthers($orderId);
             return self::find($orderId);
         });
 
         Notifier::orderStatus($order, $status);
         if ($status === 'arrived') {
             Sms::send($order['recipient_phone'], "Your Dyspatch rider has arrived with package {$order['track_id']}. Give the rider this delivery code: {$order['delivery_code']}");
+        }
+        if ($status === 'cancelled' && $order['rider_id'] && $actorType !== 'rider') {
+            Notifier::notify('rider', (int) $order['rider_id'], 'delivery', 'Delivery cancelled', "{$order['track_id']} was cancelled. Don't go to the pickup.", ['type' => 'order', 'order_id' => (string) $order['id'], 'status' => 'cancelled'], ['send' => false]);
         }
         if ($status === 'matched' && $order['rider_id']) {
             Notifier::notify('rider', (int) $order['rider_id'], 'delivery', 'New delivery assigned', "Pickup: {$order['pickup_address']}", ['type' => 'order', 'order_id' => (string) $order['id']], ['send' => false]);
@@ -219,7 +220,7 @@ final class Orders
             $o = DB::row('SELECT * FROM orders WHERE id = ? FOR UPDATE', [$orderId]);
             if (!$o || !in_array($o['status'], ['pending', 'matched'], true)) throw new ApiException('Order can no longer be reassigned', 409);
             DB::update('orders', ['rider_id' => $riderId, 'status' => 'pending'], 'id = ?', [$orderId]);
-            DB::query("UPDATE order_offers SET status = 'withdrawn', responded_at = NOW() WHERE order_id = ? AND status = 'offered'", [$orderId]);
+            Matching::withdrawOthers($orderId);
         });
         $name = trim($rider['first_name'] . ' ' . $rider['last_name']);
         return self::setStatus($orderId, 'matched', $actorType, $actorId, "Assigned to $name");

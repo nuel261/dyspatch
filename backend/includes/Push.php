@@ -60,19 +60,46 @@ final class Push
         return $sent;
     }
 
+    /** Data-only push (no banner) — e.g. tells a rider's app to close an offer someone else took. */
+    public static function silentToOwner(string $ownerType, int $ownerId, array $data): int
+    {
+        if (!self::enabled()) return 0;
+        $sent = 0;
+        foreach (DB::all('SELECT fcm_token FROM device_tokens WHERE owner_type = ? AND owner_id = ?', [$ownerType, $ownerId]) as $t) {
+            if (self::send($t['fcm_token'], ['message' => [
+                'token' => $t['fcm_token'], 'data' => array_map('strval', $data),
+                'android' => ['priority' => 'HIGH', 'ttl' => '60s'],
+                'apns' => ['headers' => ['apns-push-type' => 'background', 'apns-priority' => '5'], 'payload' => ['aps' => ['content-available' => 1]]],
+            ]])) $sent++;
+        }
+        return $sent;
+    }
+
     public static function toToken(string $fcmToken, string $title, string $body, array $data = []): bool
+    {
+        // Job offers ring on the rider app's "New jobs" channel with its own alert sound,
+        // and expire with the accept window so a late push never shows a dead offer.
+        $isOffer = ($data['type'] ?? '') === 'offer';
+        $ttl = $isOffer ? max(5, (int) ($data['expires_in'] ?? 45)) . 's' : '86400s';
+        $payload = ['message' => [
+            'token' => $fcmToken,
+            'notification' => ['title' => $title, 'body' => $body],
+            'data' => array_map('strval', $data),
+            'android' => ['priority' => 'HIGH', 'ttl' => $ttl, 'notification' => $isOffer
+                ? ['channel_id' => 'dyspatch_jobs', 'color' => '#34A853', 'sound' => 'job_alert', 'tag' => 'offer-' . ($data['order_id'] ?? '')]
+                : ['channel_id' => 'dyspatch_updates', 'color' => '#34A853', 'sound' => 'default']],
+            'apns' => ['headers' => ['apns-priority' => '10'] + ($isOffer ? ['apns-expiration' => (string) (time() + (int) $ttl)] : []),
+                'payload' => ['aps' => ['sound' => $isOffer ? 'job_alert.caf' : 'default', 'badge' => 1] + ($isOffer ? ['interruption-level' => 'time-sensitive'] : [])]],
+        ]];
+        return self::send($fcmToken, $payload);
+    }
+
+    private static function send(string $fcmToken, array $payload): bool
     {
         $access = self::accessToken();
         $sa = self::serviceAccount();
         if (!$access || !$sa) return false;
         $project = $sa['project_id'] ?? Settings::get('firebase_project_id');
-        $payload = ['message' => [
-            'token' => $fcmToken,
-            'notification' => ['title' => $title, 'body' => $body],
-            'data' => array_map('strval', $data),
-            'android' => ['priority' => 'HIGH', 'notification' => ['channel_id' => 'dyspatch_updates', 'color' => '#34A853', 'sound' => 'default']],
-            'apns' => ['payload' => ['aps' => ['sound' => 'default', 'badge' => 1]]],
-        ]];
         $r = http_request('POST', "https://fcm.googleapis.com/v1/projects/$project/messages:send", ['Authorization' => "Bearer $access"], $payload);
         if ($r['status'] === 200) return true;
         $err = $r['json']['error']['status'] ?? '';

@@ -583,9 +583,9 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.grey.shade400 : Colors.black54;
     final iconMuted = isDark ? Colors.grey.shade400 : Colors.grey.shade700;
-    final tileUrl = isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+    // OpenStreetMap tiles (no API key) — Carto's free basemaps now return an
+    // "API KEY REQUIRED" placeholder. Dark mode darkens the same tiles.
+    const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     final ride = _ride;
 
     return Scaffold(
@@ -610,9 +610,11 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
                   children: [
                     TileLayer(
                       urlTemplate: tileUrl,
-                      subdomains: const ['a', 'b', 'c', 'd'],
                       userAgentPackageName: 'com.dyspatch.delivery',
+                      maxNativeZoom: 19,
+                      tileBuilder: isDark ? darkModeTileBuilder : null,
                     ),
+                    const SimpleAttributionWidget(source: Text('OpenStreetMap contributors'), backgroundColor: Color(0xCCFFFFFF)),
                     if (_currentLocation != null)
                       CurrentLocationLayer(
                         alignPositionOnUpdate: ride == null ? AlignOnUpdate.once : AlignOnUpdate.never,

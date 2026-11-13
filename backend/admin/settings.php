@@ -17,6 +17,8 @@ $groups = [
         ['road_factor', 'Road factor', 'float', 'Straight-line → road distance multiplier when no routing API answers.'], ['avg_speed_kmh', 'Average speed (km/h)', 'int', 'For ETA estimates.'],
     ]],
     'dispatch' => ['Dispatch & tracking', 'bike', [
+        ['dispatch_mode', 'How jobs are offered', 'select:nearest=Nearest rider first, then the next|nearest_n=Nearest few riders at once — first to accept wins|broadcast=All nearby riders at once — first to accept wins', 'Riders get a loud push alert for every offer.'],
+        ['dispatch_batch_size', 'Riders per offer (nearest few)', 'int', 'Only for “Nearest few riders”. 2–20.'],
         ['matching_radius_km', 'Matching radius (km)', 'float', 'Riders within this distance of pickup are offered the job.'],
         ['accept_window_seconds', 'Accept window (seconds)', 'int', 'Then the job is re-offered to the next rider.'],
         ['max_offer_rounds', 'Max offer rounds', 'int'],

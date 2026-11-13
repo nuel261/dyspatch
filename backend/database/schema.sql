@@ -409,6 +409,8 @@ INSERT IGNORE INTO settings (`key`, `value`) VALUES
  ('matching_radius_km', '5'),
  ('accept_window_seconds', '45'),
  ('max_offer_rounds', '10'),
+ ('dispatch_mode', 'nearest'),
+ ('dispatch_batch_size', '3'),
  ('commission_pct', '20'),
  ('pricing_model', 'min_fare'),
  ('base_fare_kobo', '50000'),
