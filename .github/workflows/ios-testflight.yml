@@ -149,5 +149,9 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           cp "$RUNNER_TEMP/asc/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_${{ env.ASC_KEY_ID }}.p8
           IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
-          xcrun altool --upload-app -f "$IPA" -t ios --apiKey ${{ env.ASC_KEY_ID }} --apiIssuer ${{ env.ASC_ISSUER_ID }}
+          # altool can print "UPLOAD FAILED" and still exit 0, so check its output.
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey ${{ env.ASC_KEY_ID }} --apiIssuer ${{ env.ASC_ISSUER_ID }} 2>&1 | tee "$RUNNER_TEMP/upload.log"
+          if grep -qE "UPLOAD FAILED|ERROR:" "$RUNNER_TEMP/upload.log" || ! grep -qiE "UPLOAD SUCCEEDED|No errors uploading" "$RUNNER_TEMP/upload.log"; then
+            echo "::error::Apple rejected the upload — see the log above"; exit 1
+          fi
           echo "### ${{ matrix.name }} (${{ matrix.bundle }}) build ${{ github.run_number }} uploaded to TestFlight" >> "$GITHUB_STEP_SUMMARY"
