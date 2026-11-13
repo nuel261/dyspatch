@@ -4,7 +4,7 @@ import 'package:dyspatch_app/core/utils/button_container.dart';
 import 'package:dyspatch_app/core/services/push_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:location/location.dart';
+import 'package:dyspatch_app/core/services/location_service.dart';
 
 /// After sign-up: asks for location (precise pickup points) and notification permission.
 class EnableNotification extends StatefulWidget {
@@ -24,15 +24,7 @@ class _EnableNotificationState extends State<EnableNotification> {
   Future<void> _enable() async {
     if (_busy) return;
     setState(() => _busy = true);
-    try {
-      final loc = Location();
-      var on = await loc.serviceEnabled();
-      if (!on) on = await loc.requestService();
-      if (on) {
-        final p = await loc.hasPermission();
-        if (p == PermissionStatus.denied) await loc.requestPermission();
-      }
-    } catch (_) {}
+    await LocationService.ensurePermission(openSettingsIfOff: true);
     await PushService.instance.requestPermissionAndRegister();
     if (mounted) _goHome();
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -66,15 +67,25 @@ class PushService {
   }
 
   /// Asks for permission (Android 13+/iOS) and registers this device with the backend.
+  /// False when Firebase failed to start (e.g. missing config) — every call becomes a no-op.
+  bool get _ready => Firebase.apps.isNotEmpty;
+
   Future<bool> requestPermissionAndRegister() async {
-    final s = await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
-    final granted = s.authorizationStatus == AuthorizationStatus.authorized || s.authorizationStatus == AuthorizationStatus.provisional;
-    await syncToken();
-    return granted;
+    if (!_ready) return false;
+    try {
+      final s = await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
+      final granted = s.authorizationStatus == AuthorizationStatus.authorized || s.authorizationStatus == AuthorizationStatus.provisional;
+      await syncToken();
+      return granted;
+    } catch (e) {
+      debugPrint('Push permission failed: $e');
+      return false;
+    }
   }
 
   /// Registers the current FCM token if signed in. Safe to call often.
   Future<void> syncToken() async {
+    if (!_ready) return;
     try {
       if (Platform.isIOS) await FirebaseMessaging.instance.getAPNSToken();
       token = await FirebaseMessaging.instance.getToken();

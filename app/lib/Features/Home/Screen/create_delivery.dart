@@ -6,7 +6,7 @@ import 'package:dyspatch_app/core/api/dyspatch_api.dart';
 import 'package:dyspatch_app/core/api/session.dart';
 import 'package:dyspatch_app/core/utils/format.dart';
 import 'package:flutter/material.dart';
-import 'package:location/location.dart';
+import 'package:dyspatch_app/core/services/location_service.dart';
 
 // ── Shared form state across all steps ──
 class _DeliveryFormData {
@@ -218,13 +218,9 @@ class _FromToStepState extends State<_FromToStep> {
   Future<void> _useMyLocation() async {
     setState(() { _searching = true; _error = null; });
     try {
-      final loc = Location();
-      if (!await loc.serviceEnabled() && !await loc.requestService()) throw Exception('Turn on location services');
-      var perm = await loc.hasPermission();
-      if (perm == PermissionStatus.denied) perm = await loc.requestPermission();
-      if (perm != PermissionStatus.granted && perm != PermissionStatus.grantedLimited) throw Exception('Location permission denied');
-      final d = await loc.getLocation();
-      final r = await DyspatchApi.reverse(d.latitude!, d.longitude!);
+      final d = await LocationService.current();
+      final r = await DyspatchApi.reverse(d.latitude, d.longitude);
+      if (!mounted) return;
       _editingFrom = true;
       _pick({'name': (r['address'] as String?) ?? 'Current location', 'address': '', 'lat': d.latitude, 'lng': d.longitude});
     } catch (e) {

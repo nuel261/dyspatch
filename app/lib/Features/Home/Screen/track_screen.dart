@@ -12,7 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:dyspatch_app/core/services/location_service.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -34,9 +35,8 @@ class TrackScreen extends StatefulWidget {
 class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStateMixin {
   // ── Controllers ───────────────────────────────────────
   final MapController _mapController = MapController();
-  final Location _location = Location();
   final TextEditingController _orderIdController = TextEditingController();
-  StreamSubscription<LocationData>? _locationSub;
+  StreamSubscription<Position>? _locationSub;
 
   // ── Location State ────────────────────────────────────
   bool _isLocating = true;
@@ -94,13 +94,15 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
         if (mounted) setState(() => _isLocating = false);
         return;
       }
-      _locationSub = _location.onLocationChanged.listen((LocationData d) {
-        if (d.latitude != null && d.longitude != null && mounted) {
-          setState(() {
-            _currentLocation = LatLng(d.latitude!, d.longitude!);
-            _isLocating = false;
-          });
-        }
+      if (!mounted) return;
+      _locationSub = LocationService.stream().listen((Position d) {
+        if (!mounted) return;
+        setState(() {
+          _currentLocation = LatLng(d.latitude, d.longitude);
+          _isLocating = false;
+        });
+      }, onError: (_) {
+        if (mounted) setState(() => _isLocating = false);
       });
       // Don't block the map forever if the first fix is slow.
       Future.delayed(const Duration(seconds: 4), () {
@@ -111,19 +113,7 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
     }
   }
 
-  Future<bool> _checkLocationPermission() async {
-    bool serviceEnabled = await _location.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) return false;
-    }
-    PermissionStatus permissionGranted = await _location.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _location.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) return false;
-    }
-    return true;
-  }
+  Future<bool> _checkLocationPermission() => LocationService.ensurePermission();
 
   void _moveMap(LatLng center, double zoom) {
     if (_mapReady) {
@@ -189,6 +179,7 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
   }
 
   void _applyRide(RideModel ride) {
+    if (!mounted) return;
     setState(() {
       _ride = ride;
       _status = ride.status;
@@ -257,9 +248,13 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
     _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
   }
 
+  bool _polling = false;
+
   Future<void> _poll() async {
     final ride = _ride;
-    if (ride == null || !mounted) return;
+    // Skip if the previous poll is still running (slow network) so requests don't pile up.
+    if (ride == null || !mounted || _polling) return;
+    _polling = true;
     _pollTick++;
     try {
       if (ride.isOwner && _status.isActive && _pollTick % 3 != 0) {
@@ -284,6 +279,8 @@ class _TrackScreenState extends State<TrackScreen> with SingleTickerProviderStat
       if (_status.isFinished) _pollingTimer?.cancel();
     } catch (e) {
       debugPrint('Tracking poll failed: $e');
+    } finally {
+      _polling = false;
     }
   }
 

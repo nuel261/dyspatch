@@ -6,7 +6,10 @@ import 'package:dyspatch_app/core/api/api_client.dart';
 import 'package:dyspatch_app/core/api/session.dart';
 import 'package:dyspatch_app/core/services/push_service.dart';
 import 'package:dyspatch_app/core/theme/theme_provider.dart';
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,7 +18,21 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Session.instance.load();
+
+  // Log stray errors instead of letting them take the app down.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Uncaught error: $error\n$stack');
+    return true;
+  };
+
+  try {
+    await Session.instance.load();
+  } catch (e) {
+    debugPrint('Session load failed: $e');
+  }
   try {
     // Uses android/app/google-services.json and ios/Runner/GoogleService-Info.plist
     // from the Firebase project "dyspatch-bc9cc".
