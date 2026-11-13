@@ -29,6 +29,7 @@ jobs:
     runs-on: ${{ vars.IOS_RUNNER || 'macos-15-intel' }}
     strategy:
       fail-fast: false
+      max-parallel: 1   # parallel jobs clash when Xcode creates the signing certificate
       matrix:
         include:
           - name: customer
