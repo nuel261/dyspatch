@@ -94,7 +94,7 @@ jobs:
             -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
             -authenticationKeyID ${{ env.ASC_KEY_ID }} \
             -authenticationKeyIssuerID ${{ env.ASC_ISSUER_ID }} \
-            | xcpretty || exit ${PIPESTATUS[0]}
+            -quiet
 
       - name: Export and upload to TestFlight
         if: steps.sel.outputs.go == '1'
