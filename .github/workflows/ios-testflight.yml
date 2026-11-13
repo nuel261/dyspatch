@@ -82,19 +82,21 @@ jobs:
           flutter pub get
           flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
 
-      - name: Archive (temporary signature; real signing happens at export)
+      - name: Archive (automatic cloud signing)
         if: steps.sel.outputs.go == '1'
         run: |
-          # Automatic signing at archive time wants a development profile, which
-          # Apple only issues when the team has a registered device. Ad-hoc sign
-          # here (keeps the push entitlement), then let export re-sign with the
-          # App Store distribution certificate/profile from the cloud.
+          # Needs at least one iPhone registered under Devices on
+          # developer.apple.com, because Apple only issues the development
+          # profile used for archiving when the team has a device.
           xcodebuild archive -quiet \
             -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            DEVELOPMENT_TEAM=${{ env.APPLE_TEAM_ID }} \
-            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER=
+            DEVELOPMENT_TEAM=${{ env.APPLE_TEAM_ID }} CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID ${{ env.ASC_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ env.ASC_ISSUER_ID }}
 
       - name: Export (App Store signing)
         if: steps.sel.outputs.go == '1'
