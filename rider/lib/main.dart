@@ -21,12 +21,17 @@ Future<void> main() async {
     debugPrint('Uncaught: $e\n$s');
     return true;
   };
+  // Never let startup work keep the first screen from appearing.
   try {
-    await Session.instance.load();
+    await Session.instance.load().timeout(const Duration(seconds: 5));
   } catch (e) {
     debugPrint('Session load failed: $e');
   }
-  await PushService.instance.init();
+  try {
+    await PushService.instance.init().timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('Push init skipped: $e');
+  }
 
   // Token expired / revoked anywhere → back to the welcome screen.
   ApiClient.instance.onUnauthorized = () {
