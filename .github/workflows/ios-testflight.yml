@@ -26,7 +26,7 @@ env:
 
 jobs:
   testflight:
-    runs-on: macos-15
+    runs-on: ${{ vars.IOS_RUNNER || 'macos-15-intel' }}
     strategy:
       fail-fast: false
       matrix:
