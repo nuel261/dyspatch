@@ -74,6 +74,11 @@ class ApiClient {
     try {
       body = jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
+      // The host's LiteSpeed bot protection answers with an HTML CAPTCHA page
+      // (still HTTP 200) instead of passing the request to the API.
+      if (res.body.contains('lsrecaptcha') || res.body.contains('Bot Verification')) {
+        throw ApiException('Our server\'s security check blocked the app. Please try again in a few minutes.', status: 503);
+      }
       throw ApiException('Unexpected server response (${res.statusCode}).', status: res.statusCode);
     }
     if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) return body;
