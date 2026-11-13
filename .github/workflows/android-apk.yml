@@ -23,6 +23,8 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Pinned: Flutter 3.50+ requires Gradle 9.3.1 / AGP 9, which this project isn't on yet.
+          flutter-version: 3.47.7
           cache: true
 
       - name: Firebase config
