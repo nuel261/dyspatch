@@ -1,0 +1,43 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Brings an existing database up to date (fresh installs get the same from
+ * database/schema.sql). Runs once per version; a flag file in storage/cache
+ * stops it from touching the database on every request.
+ */
+final class Schema
+{
+    private const VERSION = 2;
+
+    public static function ensure(): void
+    {
+        $flag = BASE_PATH . '/storage/cache/schema-v' . self::VERSION . '.flag';
+        if (is_file($flag)) return;
+        try {
+            DB::query("CREATE TABLE IF NOT EXISTS blog_posts (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                slug VARCHAR(160) NOT NULL UNIQUE,
+                title VARCHAR(200) NOT NULL,
+                category VARCHAR(40) NOT NULL DEFAULT 'News',
+                excerpt VARCHAR(400) NULL,
+                body MEDIUMTEXT NULL,
+                cover_image VARCHAR(255) NULL,
+                author VARCHAR(120) NULL,
+                is_featured TINYINT(1) NOT NULL DEFAULT 0,
+                status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+                published_at DATETIME NULL,
+                created_by INT UNSIGNED NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_blog_pub (status, published_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            Website::seedDefaults();
+            Blog::seed();
+            @mkdir(dirname($flag), 0775, true);
+            @file_put_contents($flag, date(DATE_ATOM));
+        } catch (Throwable $e) {
+            log_line('schema', $e->getMessage());
+        }
+    }
+}

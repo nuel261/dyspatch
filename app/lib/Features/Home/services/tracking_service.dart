@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../model/ride_model.dart';
 
-/// Ride tracking calls against https://dyspatch.bitprofil.com/api.
+/// Ride tracking calls against https://app.dyspatch.com.ng/backend/api.
 class TrackingService {
   /// Full order details incl. rider, timeline and parcels. GET /orders/{trackId}
   /// (falls back to public GET /track/{trackId} for packages sent by others).

@@ -456,3 +456,22 @@ INSERT IGNORE INTO settings (`key`, `value`) VALUES
  ('mail_from_name', 'Dyspatch'),
  ('admin_alert_email', ''),
  ('firebase_project_id', 'dyspatch-bc9cc');
+
+-- Public website: blog posts managed in Admin → Website → Blog
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(160) NOT NULL UNIQUE,
+  title VARCHAR(200) NOT NULL,
+  category VARCHAR(40) NOT NULL DEFAULT 'News',
+  excerpt VARCHAR(400) NULL,
+  body MEDIUMTEXT NULL,
+  cover_image VARCHAR(255) NULL,
+  author VARCHAR(120) NULL,
+  is_featured TINYINT(1) NOT NULL DEFAULT 0,
+  status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+  published_at DATETIME NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_blog_pub (status, published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

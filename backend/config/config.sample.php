@@ -5,7 +5,8 @@
  * live in the `settings` table and are edited from Admin → Settings — not here.
  */
 return [
-    'app_url'  => 'https://dyspatch.bitprofil.com',   // no trailing slash
+    'app_url'  => 'https://app.dyspatch.com.ng/backend',   // where this backend folder is served; no trailing slash
+    'site_url' => 'https://dyspatch.com.ng',             // public website (tracking links, emails); no trailing slash
     'env'      => 'production',                        // production | development
     'timezone' => 'Africa/Lagos',
 

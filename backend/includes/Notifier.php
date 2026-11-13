@@ -48,7 +48,7 @@ final class Notifier
         ];
         if (!isset($map[$status]) || !$order['user_id']) return;
         [$title, $body] = $map[$status];
-        $trackUrl = app_url('track?id=' . urlencode($tid));
+        $trackUrl = site_url('track?id=' . urlencode($tid));
         self::notify('user', (int) $order['user_id'], 'delivery', $title, $body,
             ['type' => 'order', 'order_id' => (string) $order['id'], 'track_id' => $tid, 'status' => $status],
             ['heading' => $title, 'html' => '<p>' . e($body) . '</p><p style="margin:0">Track ID: <b style="color:#0E0F10">' . e($tid) . '</b></p>', 'cta_label' => 'Track package', 'cta_url' => $trackUrl]);

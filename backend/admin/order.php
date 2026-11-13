@@ -53,7 +53,7 @@ handle_post(function ($in) use ($o, $admin) {
                 ($in['lat'] ?? '') !== '' ? (float) $in['lat'] : null, ($in['lng'] ?? '') !== '' ? (float) $in['lng'] : null);
             if (!empty($in['notify']) && $o['user_id']) {
                 Notifier::notify('user', (int) $o['user_id'], 'delivery', $title . ' · ' . $o['track_id'], trim((string) ($in['note'] ?? '')) ?: $title,
-                    ['type' => 'order', 'order_id' => (string) $o['id'], 'track_id' => $o['track_id']], ['cta_label' => 'Track package', 'cta_url' => app_url('track?id=' . $o['track_id'])]);
+                    ['type' => 'order', 'order_id' => (string) $o['id'], 'track_id' => $o['track_id']], ['cta_label' => 'Track package', 'cta_url' => site_url('track?id=' . $o['track_id'])]);
             }
             return 'Tracking update added';
         case 'regen':
@@ -87,7 +87,7 @@ $isActive = in_array($o['status'], Orders::ACTIVE, true);
 $done = in_array($o['status'], ['delivered', 'cancelled', 'failed'], true);
 $flow = ['pending' => 0, 'matched' => 1, 'picked_up' => 2, 'en_route' => 3, 'arrived' => 4, 'delivered' => 5];
 $stepIdx = $flow[$o['status']] ?? -1;
-$publicUrl = app_url('track?id=' . urlencode($o['track_id']));
+$publicUrl = site_url('track?id=' . urlencode($o['track_id']));
 
 layout_start($o['track_id'], 'orders', e($o['order_no']) . ' · ' . e($zone['name'] ?? 'No zone') . ' · created ' . date('j M Y, H:i', strtotime($o['created_at'])) . ' via ' . e($o['channel']),
     '<a class="btn ghost sm" target="_blank" href="' . e($publicUrl) . '">' . icon('link') . ' Public page</a><a class="btn ghost sm" target="_blank" href="label.php?id=' . $id . '">Print labels</a>', true);

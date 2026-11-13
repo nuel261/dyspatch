@@ -28,6 +28,14 @@ function app_url(string $path = ''): string
     return rtrim((string) config('app_url', ''), '/') . '/' . ltrim($path, '/');
 }
 
+/** Public website (tracking page, blog). Admin → Website can override it. */
+function site_url(string $path = ''): string
+{
+    $base = class_exists('Settings') ? (string) Settings::get('site_url', '') : '';
+    if ($base === '') $base = (string) config('site_url', 'https://dyspatch.com.ng');
+    return rtrim($base, '/') . '/' . ltrim($path, '/');
+}
+
 function e($v): string { return htmlspecialchars((string) ($v ?? ''), ENT_QUOTES, 'UTF-8'); }
 
 function now(): string { return date('Y-m-d H:i:s'); }

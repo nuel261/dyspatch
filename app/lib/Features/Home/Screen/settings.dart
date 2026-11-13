@@ -200,7 +200,7 @@ class _SettingsState extends State<Settings> {
                         MenuItem(
                           icon: Icons.help_outline,
                           label: "Help Center",
-                          onTap: () => launchUrl(Uri.parse('https://www.dyspatch.com.ng/#faq'), mode: LaunchMode.externalApplication),
+                          onTap: () => launchUrl(Uri.parse('https://dyspatch.com.ng/#faq'), mode: LaunchMode.externalApplication),
                         ),
                         MenuItem(
                           icon: Icons.headset_mic_outlined,

@@ -2,7 +2,7 @@
 class ApiConfig {
   static const String host = String.fromEnvironment(
     'API_HOST',
-    defaultValue: 'https://dyspatch.bitprofil.com',
+    defaultValue: 'https://app.dyspatch.com.ng/backend',
   );
   static const String baseUrl = '$host/api';
   static const Duration timeout = Duration(seconds: 25);

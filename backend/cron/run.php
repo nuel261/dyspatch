@@ -2,7 +2,7 @@
 /**
  * Background jobs. cPanel → Cron Jobs (every minute):
  *   * * * * * php /home/USER/public_html/cron/run.php >/dev/null 2>&1
- * Or by URL: https://dyspatch.bitprofil.com/cron/run.php?key=CRON_KEY
+ * Or by URL: https://app.dyspatch.com.ng/backend/cron/run.php?key=CRON_KEY
  */
 require dirname(__DIR__) . '/includes/bootstrap.php';
 if (PHP_SAPI !== 'cli' && !hash_equals((string) config('cron_key'), (string) ($_GET['key'] ?? ''))) { http_response_code(403); exit('Forbidden'); }

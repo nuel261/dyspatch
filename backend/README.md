@@ -1,6 +1,6 @@
 # Dyspatch backend (PHP + MySQL)
 
-Live at **https://dyspatch.bitprofil.com** — REST API, admin panel and public parcel tracking.
+Live at **https://app.dyspatch.com.ng/backend** — REST API and admin panel (`/backend/admin/`). The public website (incl. tracking and blog) is https://dyspatch.com.ng and reads the same database through this API.
 
 | Path | What |
 |---|---|
@@ -10,9 +10,9 @@ Live at **https://dyspatch.bitprofil.com** — REST API, admin panel and public 
 | `/t/{token}` | Shareable live-tracking link |
 
 ## Install on cPanel (≈10 minutes)
-1. **Upload**: put the contents of this folder in the document root of `dyspatch.bitprofil.com`.
+1. **Upload**: put the contents of this folder in `public_html/backend` of `app.dyspatch.com.ng` (so the admin is at https://app.dyspatch.com.ng/backend/admin/index.php).
 2. **Database**: cPanel → MySQL® Databases → create a database + user, grant ALL privileges.
-3. **Installer**: open `https://dyspatch.bitprofil.com/install.php`, enter the DB details and your
+3. **Installer**: open `https://app.dyspatch.com.ng/backend/install.php`, enter the DB details and your
    admin email/password. It creates the tables, seeds settings/zones and writes `config/config.php`.
 4. **Delete `install.php`** from the server.
 5. **Cron** (cPanel → Cron Jobs, every minute):

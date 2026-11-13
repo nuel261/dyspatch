@@ -1,6 +1,6 @@
 # Dyspatch app — setup
 
-The app talks to the backend at **https://dyspatch.bitprofil.com/api**
+The app talks to the backend at **https://app.dyspatch.com.ng/backend/api**
 (change it in `lib/core/api/api_config.dart`, or build with `--dart-define=API_HOST=https://…`).
 
 ## 1. Firebase (new project: `dyspatch-bc9cc`)

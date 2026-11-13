@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $url = rtrim(trim($_POST['app_url']), '/');
         $cfg = "<?php\nreturn " . var_export([
-            'app_url' => $url, 'env' => 'production', 'timezone' => 'Africa/Lagos', 'db' => $db,
+            'app_url' => $url, 'site_url' => 'https://dyspatch.com.ng', 'env' => 'production', 'timezone' => 'Africa/Lagos', 'db' => $db,
             'app_key' => bin2hex(random_bytes(32)), 'token_ttl_days' => 60, 'cron_key' => bin2hex(random_bytes(12)),
         ], true) . ";\n";
         if (@file_put_contents($configFile, $cfg) === false) throw new RuntimeException('Could not write config/config.php — make the config folder writable, or create the file manually.');
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $e->getMessage();
     }
 }
-$guessUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'dyspatch.bitprofil.com') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+$guessUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'app.dyspatch.com.ng') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
 ?>
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Install Dyspatch</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">

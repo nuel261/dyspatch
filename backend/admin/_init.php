@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/includes/bootstrap.php';
+Schema::ensure();
 
 session_name('dyspatch_admin');
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
@@ -117,6 +118,9 @@ function icon(string $n): string
         'truck' => '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
         'layers' => '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
         'activity' => '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+        'pen' => '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+        'globe' => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3"/>',
+        'eye' => '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12"/><circle cx="12" cy="12" r="3"/>',
     ];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' . ($p[$n] ?? '') . '</svg>';
 }
@@ -155,6 +159,11 @@ function layout_start(string $title, string $active, string $subtitle = '', stri
             ['withdrawals.php', 'up', 'Withdrawals', 'withdrawals', $c['withdrawals'] ?? 0],
             ['transactions.php', 'receipt', 'Transactions', 'transactions', null],
         ]],
+        ['Website', [
+            ['blog.php', 'pen', 'Blog posts', 'blog', null],
+            ['website.php', 'globe', 'Website content', 'website', null],
+            [site_url(), 'link', 'Open website ↗', '_ext', null],
+        ]],
         ['Platform', [
             ['zones.php', 'layers', 'Zones', 'zones', null],
             ['notify.php', 'bell', 'Broadcast', 'notify', null],
@@ -178,7 +187,7 @@ function layout_start(string $title, string $active, string $subtitle = '', stri
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="../assets/css/admin.css?v=3">
+<link rel="stylesheet" href="../assets/css/admin.css?v=4">
 <script>try{var t=localStorage.getItem('dsp-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
@@ -188,7 +197,7 @@ function layout_start(string $title, string $active, string $subtitle = '', stri
     <?php foreach ($nav as [$label, $links]): ?>
       <div class="label"><?= e($label) ?></div>
       <?php foreach ($links as $l): ?>
-        <a href="<?= $l[0] ?>" class="<?= $active === $l[3] ? 'active' : '' ?>"><?= icon($l[1]) ?> <?= e($l[2]) ?><?php if (!empty($l[4])): ?><span class="count <?= $l[5] ?? '' ?>"><?= (int) $l[4] ?></span><?php endif; ?></a>
+        <a href="<?= e($l[0]) ?>" class="<?= $active === $l[3] ? 'active' : '' ?>"<?= $l[3] === '_ext' ? ' target="_blank" rel="noopener"' : '' ?>><?= icon($l[1]) ?> <?= e($l[2]) ?><?php if (!empty($l[4])): ?><span class="count <?= $l[5] ?? '' ?>"><?= (int) $l[4] ?></span><?php endif; ?></a>
       <?php endforeach; ?>
     <?php endforeach; ?>
     <div class="foot">

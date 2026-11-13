@@ -40,7 +40,7 @@ $groups = [
     ]],
     'email' => ['Email', 'bell', [
         ['email_enabled', 'Send emails', 'bool'],
-        ['smtp_host', 'SMTP host', 'text', 'e.g. mail.bitprofil.com or smtp.gmail.com. Leave empty to use PHP mail().'],
+        ['smtp_host', 'SMTP host', 'text', 'e.g. mail.dyspatch.com.ng or smtp.gmail.com. Leave empty to use PHP mail().'],
         ['smtp_port', 'SMTP port', 'int'], ['smtp_encryption', 'Encryption', 'select:tls=STARTTLS (587)|ssl=SSL (465)|none=None'],
         ['smtp_username', 'SMTP username', 'text'], ['smtp_password', 'SMTP password', 'secret'],
         ['mail_from_email', 'From email', 'email'], ['mail_from_name', 'From name', 'text'],

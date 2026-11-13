@@ -294,7 +294,7 @@ final class Orders
         $o = self::find($orderId);
         $token = $o['share_token'] ?: rand_code(16, 'abcdefghijkmnpqrstuvwxyz23456789');
         DB::update('orders', ['share_token' => $token, 'share_expires_at' => null], 'id = ?', [$orderId]);
-        return app_url('t/' . $token);
+        return site_url('track?s=' . $token);
     }
 
     /** Link stays valid while active, then for N hours after completion (configurable, open decision #7). */

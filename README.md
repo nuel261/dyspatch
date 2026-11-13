@@ -3,7 +3,7 @@
 | Folder | What |
 |---|---|
 | `app/` | Flutter customer app (Android & iOS) — see `app/FIREBASE_AND_SETUP.md` |
-| `backend/` | PHP/MySQL API, admin panel and public tracking for https://dyspatch.bitprofil.com — see `backend/README.md` |
+| `backend/` | PHP/MySQL API and admin panel at https://app.dyspatch.com.ng/backend (website: https://dyspatch.com.ng) — see `backend/README.md` |
 
 **Android builds:** every push to `main` that touches `app/` runs *Actions → Build signed Android APK*.
 Download the signed `.apk` (and Play Store `.aab`) from the run's **Artifacts**.

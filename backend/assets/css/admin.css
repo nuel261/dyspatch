@@ -220,6 +220,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .flash.ok { background: var(--brand-alpha); color: var(--brand-600); }
 .flash.err { background: #EA43351A; color: #D33426; }
 .flash.warn { background: #FBBC0522; color: #8A6503; }
+.flash svg { width: 18px; height: 18px; flex: none; }
 .callout { background: var(--surface-2); border-radius: var(--r); padding: 14px 16px; font-size: 13px; color: var(--muted); }
 .callout b { color: var(--text); }
 

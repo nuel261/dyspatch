@@ -6,6 +6,10 @@ if (!admin()) { http_response_code(401); echo json_encode(['success' => false, '
 
 try {
     switch ($_GET['a'] ?? '') {
+        case 'blog_preview':
+            check_csrf();
+            echo json_encode(['success' => true, 'data' => ['html' => Blog::render((string) ($_POST['body'] ?? ''))]]);
+            break;
         case 'quote':
             $q = Orders::quote($_GET);
             echo json_encode(['success' => true, 'data' => [

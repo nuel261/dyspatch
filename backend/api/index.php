@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 /**
- * Dyspatch REST API — https://dyspatch.bitprofil.com/api
+ * Dyspatch REST API — https://app.dyspatch.com.ng/backend/api
  * JSON in/out. Auth: "Authorization: Bearer <token>" from /auth/otp/verify or /auth/google.
  * Errors: {"success":false,"message":"...","errors":{...}} with an HTTP status.
  */
 require dirname(__DIR__) . '/includes/bootstrap.php';
+Schema::ensure();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -125,6 +126,28 @@ function route(string $m, string $pattern, callable $fn): void
 /* ─────────────── Public ─────────────── */
 route('GET', '/', fn() => ok(['name' => 'Dyspatch API', 'version' => '1.0', 'time' => date('c')]));
 
+/* Website (https://dyspatch.com.ng) — content managed in Admin → Website */
+route('GET', '/site', function () {
+    header('Cache-Control: public, max-age=60');
+    ok(Website::publicSettings());
+});
+
+route('GET', '/blog', function () {
+    header('Cache-Control: public, max-age=60');
+    $cat = trim((string) ($_GET['category'] ?? ''));
+    $posts = Blog::published((int) ($_GET['limit'] ?? 50), $cat !== '' ? $cat : null);
+    ok(['posts' => array_map(fn($p) => Blog::payload($p), $posts), 'categories' => Blog::CATEGORIES]);
+});
+
+route('GET', '/blog/{slug}', function ($p) {
+    header('Cache-Control: public, max-age=60');
+    $post = DB::row("SELECT * FROM blog_posts WHERE slug = ? AND status = 'published' AND (published_at IS NULL OR published_at <= NOW())", [$p['slug']]);
+    if (!$post) throw new ApiException('That article isn’t available', 404);
+    $more = DB::all("SELECT * FROM blog_posts WHERE status = 'published' AND id <> ? AND (published_at IS NULL OR published_at <= NOW())
+                     ORDER BY (category = ?) DESC, COALESCE(published_at, created_at) DESC LIMIT 3", [$post['id'], $post['category']]);
+    ok(['post' => Blog::payload($post, true), 'more' => array_map(fn($m) => Blog::payload($m), $more)]);
+});
+
 route('GET', '/config', function () {
     ok([
         'otp_length' => Settings::int('otp_length', 4),
@@ -135,7 +158,7 @@ route('GET', '/config', function () {
         'withdrawal_min_kobo' => Settings::int('withdrawal_min_kobo', 50000),
         'withdrawal_cutoff_hour' => Settings::int('withdrawal_cutoff_hour', 17),
         'zones' => array_map(fn($z) => ['name' => $z['name'], 'code' => $z['code'], 'city' => $z['city'], 'is_live' => (bool) $z['is_live']], DB::all('SELECT * FROM zones ORDER BY is_live DESC, name')),
-        'terms_url' => app_url('legal/terms'), 'privacy_url' => app_url('legal/privacy'),
+        'terms_url' => site_url('privacy-terms'), 'privacy_url' => site_url('privacy-terms'), 'website_url' => site_url(),
     ]);
 });
 
