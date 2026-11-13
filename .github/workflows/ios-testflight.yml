@@ -83,6 +83,13 @@ jobs:
           flutter pub get
           flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
 
+      - name: Clear stale CI development certificates
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography || python3 -m pip install --quiet pyjwt cryptography
+          python3 .github/scripts/clean_ci_dev_certs.py "$RUNNER_TEMP/asc/AuthKey.p8"
+
       - name: Archive (automatic cloud signing)
         if: steps.sel.outputs.go == '1'
         run: |
