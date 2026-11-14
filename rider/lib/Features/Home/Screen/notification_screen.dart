@@ -1,3 +1,5 @@
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/ui/format.dart';
 import 'package:dyspatch_rider/Features/Home/widget/ride_tabs.dart';
 import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'package:flutter/material.dart';
@@ -24,41 +26,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _NotifFilter.system: 'System',
   };
 
-  // Sample data — replace with real data source
-  final List<NotificationEntry> _entries = const [
-    NotificationEntry(
-      title: 'Rider assigned',
-      description: 'John Akin is heading to pickup Order #BN4821',
-      time: '2 mins ago',
-      dayGroup: 'Today',
-      category: NotificationCategory.orders,
-      icon: Icons.local_shipping_outlined,
-    ),
-    NotificationEntry(
-      title: 'Pickup completed',
-      description: 'Your package has been picked up',
-      time: '10 mins ago',
-      dayGroup: 'Today',
-      category: NotificationCategory.orders,
-      icon: Icons.local_shipping_outlined,
-    ),
-    NotificationEntry(
-      title: 'Wallet funded',
-      description: '₦50,000 was added to your wallet',
-      time: '3:45pm',
-      dayGroup: 'Yesterday',
-      category: NotificationCategory.payments,
-      icon: Icons.account_balance_wallet_outlined,
-    ),
-    NotificationEntry(
-      title: 'Delivery delay',
-      description: 'Rider reported traffic delay Order #BN4815',
-      time: '1:22pm',
-      dayGroup: 'Yesterday',
-      category: NotificationCategory.orders,
-      icon: Icons.local_shipping_outlined,
-    ),
-  ];
+  List<NotificationEntry> _entries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await RiderApi.notifications();
+      if (!mounted) return;
+      setState(() {
+        _entries = list.map((n) {
+          final at = parseTime(n['created_at']);
+          final cat = switch (n['category']) {
+            'order' || 'orders' || 'delivery' => NotificationCategory.orders,
+            'payment' || 'payments' || 'wallet' => NotificationCategory.payments,
+            _ => NotificationCategory.system,
+          };
+          return NotificationEntry(
+            title: (n['title'] as String?) ?? 'Dyspatch',
+            description: (n['body'] as String?) ?? '',
+            time: timeAgo(at),
+            dayGroup: dayGroup(at),
+            category: cat,
+            icon: switch (cat) {
+              NotificationCategory.orders => Icons.local_shipping_outlined,
+              NotificationCategory.payments => Icons.account_balance_wallet_outlined,
+              NotificationCategory.system => Icons.info_outline,
+            },
+          );
+        }).toList();
+      });
+      RiderApi.markAllRead().catchError((_) {});
+    } catch (_) {}
+  }
 
   List<NotificationEntry> get _filtered {
     switch (_selected) {

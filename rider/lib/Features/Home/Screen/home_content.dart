@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dyspatch_rider/Features/Home/widget/ride_tabs.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Track/track_screen.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/delivery_card.dart';
@@ -105,10 +106,12 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
     _checkLocationAccess();
     // React live when the rider toggles location from the quick settings
     // panel without leaving the app.
-    _serviceStatusSub = Geolocator.getServiceStatusStream().listen(
-      (_) => _checkLocationAccess(),
-      onError: (_) {},
-    );
+    if (!kIsWeb) {
+      _serviceStatusSub = Geolocator.getServiceStatusStream().listen(
+        (_) => _checkLocationAccess(),
+        onError: (_) {},
+      );
+    }
   }
 
   @override

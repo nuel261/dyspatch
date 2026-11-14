@@ -1,23 +1,15 @@
-import 'package:dyspatch_rider/Features/Home/widget/ride_tabs.dart';
-import 'package:dyspatch_rider/core/utils/rider_session.dart';
+import 'dart:async';
+
+import 'package:dyspatch_rider/Features/Home/widget/app_bottom_sheet.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/button.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
+import 'package:dyspatch_rider/core/ui/format.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Earning/add_account_screen.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Earning/wallet_history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-class _EarningTab {
-  final String label;
-  final String balance;
-  final int ordersReceived;
-  final int ordersDelivered;
-
-  const _EarningTab({
-    required this.label,
-    required this.balance,
-    required this.ordersReceived,
-    required this.ordersDelivered,
-  });
-}
 
 class EarningScreen extends StatefulWidget {
   const EarningScreen({super.key});
@@ -28,50 +20,98 @@ class EarningScreen extends StatefulWidget {
 
 class _EarningScreenState extends State<EarningScreen> {
   bool _balanceVisible = true;
-  int _selectedTab = 0;
 
-  final List<_EarningTab> _tabs = const [
-    _EarningTab(
-      label: 'Total',
-      balance: '₦180,000.00',
-      ordersReceived: 2200,
-      ordersDelivered: 1728,
-    ),
-    _EarningTab(
-      label: 'Ride 1',
-      balance: '₦34,800.00',
-      ordersReceived: 200,
-      ordersDelivered: 128,
-    ),
-    _EarningTab(
-      label: 'Ride 2',
-      balance: '₦28,400.00',
-      ordersReceived: 180,
-      ordersDelivered: 140,
-    ),
-    _EarningTab(
-      label: 'Ride 3',
-      balance: '₦41,200.00',
-      ordersReceived: 250,
-      ordersDelivered: 210,
-    ),
-    _EarningTab(
-      label: 'Ride 4',
-      balance: '₦19,600.00',
-      ordersReceived: 130,
-      ordersDelivered: 90,
-    ),
-    _EarningTab(
-      label: 'Ride 5',
-      balance: '₦56,000.00',
-      ordersReceived: 1440,
-      ordersDelivered: 1160,
-    ),
-  ];
+  Map<String, dynamic>? _wallet;
+  int? _accountId; // account used for withdrawals
+  bool _loading = true;
 
-  // Riders who aren't fleet owners only have their own total.
-  _EarningTab get _current =>
-      _tabs[RiderSession.isFleetOwner ? _selectedTab : 0];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    RiderState.instance.refresh();
+  }
+
+  Future<void> _load() async {
+    try {
+      final w = await RiderApi.wallet();
+      if (!mounted) return;
+      setState(() {
+        _wallet = w;
+        final accs = _accounts;
+        if (_accountId == null || !accs.any((a) => a['id'] == _accountId)) {
+          final def = accs.where((a) => a['is_default'] == true).toList();
+          _accountId = (def.isNotEmpty ? def.first : (accs.isNotEmpty ? accs.first : null))?['id'] as int?;
+        }
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _accounts =>
+      ((_wallet?['bank_accounts'] as List?) ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+  Map<String, dynamic>? get _account {
+    for (final a in _accounts) {
+      if (a['id'] == _accountId) return a;
+    }
+    return null;
+  }
+
+  int get _balanceKobo => (_wallet?['balance_kobo'] as num?)?.toInt() ?? RiderState.instance.walletKobo;
+
+  Future<void> _changeAccount() async {
+    final accs = _accounts;
+    if (accs.length < 2) {
+      showSnack(context, accs.isEmpty ? 'Add a bank account first.' : 'You have one account. Tap "Add" to add another.');
+      return;
+    }
+    final picked = await showAppBottomSheet<int>(
+      context: context,
+      title: 'Choose account',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final a in accs)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                a['id'] == _accountId ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: const Color(0xFF298341),
+              ),
+              title: Text('${a['bank_name']}', style: AppBottomSheetStyle.optionStyle),
+              subtitle: Text('${a['account_name']} · ${a['account_number']}', style: AppBottomSheetStyle.subtitleStyle),
+              onTap: () => Navigator.pop(context, a['id'] as int),
+            ),
+        ],
+      ),
+    );
+    if (picked != null) setState(() => _accountId = picked);
+  }
+
+  Future<void> _withdraw() async {
+    if (_account == null) {
+      showSnack(context, 'Add a bank account to withdraw to.', error: true);
+      return;
+    }
+    final done = await showAppBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      title: 'Withdraw',
+      child: _WithdrawSheet(
+        balanceKobo: _balanceKobo,
+        minKobo: (_wallet?['withdrawal_min_kobo'] as num?)?.toInt() ?? 50000,
+        account: _account!,
+      ),
+    );
+    if (done == true) {
+      _load();
+      RiderState.instance.refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +128,7 @@ class _EarningScreenState extends State<EarningScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () => Navigator.maybePop(context),
                     child: Container(
                       decoration: BoxDecoration(
                         color: cs.tertiaryContainer,
@@ -112,7 +152,6 @@ class _EarningScreenState extends State<EarningScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // refresh action, wire to real refresh logic
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -140,15 +179,7 @@ class _EarningScreenState extends State<EarningScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Fleet owners: Total, then one tab per ride.
-                    if (RiderSession.isFleetOwner) ...[
-                      RideTabs(
-                        labels: [for (final t in _tabs) t.label],
-                        selected: _selectedTab,
-                        onSelected: (i) => setState(() => _selectedTab = i),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                    if (_loading) const LinearProgressIndicator(minHeight: 2, color: Color(0xFF298341)),
 
                     // ── Balance ───────────────────────────────────
                     Center(
@@ -169,7 +200,7 @@ class _EarningScreenState extends State<EarningScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                _balanceVisible ? _current.balance : "₦ ••••••",
+                                _balanceVisible ? naira(_balanceKobo, decimals: true) : "₦ ••••••",
                                 style: const TextStyle(
                                   fontFamily: "Montserrat",
                                   fontSize: 26,
@@ -193,12 +224,35 @@ class _EarningScreenState extends State<EarningScreen> {
                           const SizedBox(height: 10),
                           // ── Orders Received / Delivered ──
                           Text(
-                            "Order Received: ${_current.ordersReceived}  •  Order Delivered: ${_current.ordersDelivered}",
+                            "Order Received: ${RiderState.instance.me?['total_jobs'] ?? 0}  •  Order Delivered: ${RiderState.instance.me?['total_deliveries'] ?? 0}",
                             style: const TextStyle(
                               fontFamily: "Montserrat",
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF5F6368),
+                            ),
+                          ),
+                          if ((_wallet?['pending_withdrawals'] as num? ?? 0) > 0) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              '${_wallet!['pending_withdrawals']} withdrawal(s) processing',
+                              style: const TextStyle(fontFamily: 'Montserrat', fontSize: 12, color: Color(0xFFB88704)),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: 200,
+                            child: ElevatedButton.icon(
+                              onPressed: _withdraw,
+                              icon: const Icon(Icons.arrow_upward_rounded, size: 16),
+                              label: const Text('Withdraw', style: TextStyle(fontFamily: 'Montserrat', fontSize: 13, fontWeight: FontWeight.w600)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF298341),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
                             ),
                           ),
                         ],
@@ -208,8 +262,8 @@ class _EarningScreenState extends State<EarningScreen> {
                     const SizedBox(height: 32),
 
                     // ── Account label ────────────────────────────────
-                    const Text(
-                      "Account 1",
+                    Text(
+                      _account == null ? "No bank account yet" : "Account ${_accounts.indexWhere((a) => a['id'] == _accountId) + 1}",
                       style: TextStyle(
                         fontFamily: "Montserrat",
                         fontSize: 13,
@@ -220,7 +274,7 @@ class _EarningScreenState extends State<EarningScreen> {
                     const SizedBox(height: 10),
 
                     // ── Bank card ────────────────────────────────────
-                    const _BankCard(),
+                    _BankCard(account: _account),
 
                     const SizedBox(height: 20),
 
@@ -229,7 +283,7 @@ class _EarningScreenState extends State<EarningScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {},
+                            onPressed: _changeAccount,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(
                                 0xFF298341,
@@ -254,13 +308,14 @@ class _EarningScreenState extends State<EarningScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
+                            onPressed: () async {
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => AddAccountScreen(),
                                 ),
                               );
+                              _load();
                             },
                             icon: const Icon(Icons.add, size: 16),
                             label: const Text(
@@ -302,10 +357,14 @@ class _EarningScreenState extends State<EarningScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BankCard extends StatelessWidget {
-  const _BankCard();
+  final Map<String, dynamic>? account;
+  const _BankCard({this.account});
 
   @override
   Widget build(BuildContext context) {
+    final a = account;
+    final number = (a?['account_number'] ?? '').toString();
+    final spaced = number.length == 10 ? '${number.substring(0, 3)}  ${number.substring(3, 7)}  ${number.substring(7)}' : number;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -320,9 +379,9 @@ class _BankCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "GT Bank",
-            style: TextStyle(
+          Text(
+            a == null ? 'Add your bank account' : '${a['bank_name']}',
+            style: const TextStyle(
               fontFamily: "Montserrat",
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -330,9 +389,9 @@ class _BankCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          const Text(
-            "DAN-JOHN CHIBUZOR DANIEL",
-            style: TextStyle(
+          Text(
+            a == null ? 'Your earnings are paid out here' : '${a['account_name']}'.toUpperCase(),
+            style: const TextStyle(
               fontFamily: "Montserrat",
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -342,12 +401,15 @@ class _BankCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           GestureDetector(
-            onTap: () {
-              Clipboard.setData(const ClipboardData(text: '3124209490'));
-            },
-            child: const Text(
-              "312  4209  490",
-              style: TextStyle(
+            onTap: number.isEmpty
+                ? null
+                : () {
+                    Clipboard.setData(ClipboardData(text: number));
+                    showSnack(context, 'Account number copied');
+                  },
+            child: Text(
+              number.isEmpty ? '•••  ••••  •••' : spaced,
+              style: const TextStyle(
                 fontFamily: "Montserrat",
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -356,6 +418,111 @@ class _BankCard extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Amount → live fee quote → confirm. Pops true once the request is placed.
+class _WithdrawSheet extends StatefulWidget {
+  final int balanceKobo;
+  final int minKobo;
+  final Map<String, dynamic> account;
+  const _WithdrawSheet({required this.balanceKobo, required this.minKobo, required this.account});
+
+  @override
+  State<_WithdrawSheet> createState() => _WithdrawSheetState();
+}
+
+class _WithdrawSheetState extends State<_WithdrawSheet> {
+  final _amount = TextEditingController();
+  int? _feeKobo;
+  bool _sending = false;
+  Timer? _debounce;
+
+  int get _kobo => toKobo(_amount.text);
+
+  String? get _problem {
+    if (_kobo == 0) return null;
+    if (_kobo < widget.minKobo) return 'Minimum withdrawal is ${naira(widget.minKobo)}';
+    if (_kobo + (_feeKobo ?? 0) > widget.balanceKobo) return 'Not enough balance (fee included)';
+    return null;
+  }
+
+  void _onChanged(String _) {
+    setState(() => _feeKobo = null);
+    _debounce?.cancel();
+    if (_kobo < widget.minKobo) return;
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final r = await RiderApi.withdrawalFee(_amount.text);
+        if (mounted) setState(() => _feeKobo = (r['fee_kobo'] as num?)?.toInt() ?? 0);
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _submit() async {
+    setState(() => _sending = true);
+    try {
+      final env = await RiderApi.withdraw(_amount.text, bankAccountId: widget.account['id'] as int?);
+      if (!mounted) return;
+      showSnack(context, (env['message'] as String?) ?? 'Withdrawal requested');
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final problem = _problem;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Available: ${naira(widget.balanceKobo, decimals: true)}', textAlign: TextAlign.center, style: AppBottomSheetStyle.subtitleStyle),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _amount,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+            onChanged: _onChanged,
+            style: const TextStyle(fontFamily: 'Montserrat', fontSize: 22, fontWeight: FontWeight.w700),
+            decoration: InputDecoration(
+              prefixText: '₦ ',
+              hintText: '0.00',
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1A6B3C), width: 2)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            problem ?? (_feeKobo == null ? 'To ${widget.account['bank_name']} · ${widget.account['account_number']}' : 'Fee ${naira(_feeKobo, decimals: true)} · You receive ${naira(_kobo, decimals: true)}'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontFamily: 'Montserrat', fontSize: 12, color: problem != null ? const Color(0xFFD32F2F) : const Color(0xFF5F6368)),
+          ),
+          const SizedBox(height: 16),
+          Button(
+            button_text: 'Withdraw ${_kobo > 0 ? naira(_kobo) : ''}',
+            color: const Color(0xFF298341),
+            textColor: Colors.white,
+            loading: _sending,
+            onTap: _kobo > 0 && problem == null && _feeKobo != null ? _submit : null,
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );

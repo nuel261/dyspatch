@@ -206,15 +206,17 @@ class RiderState extends ChangeNotifier with WidgetsBindingObserver {
       offers
         ..clear()
         ..addAll(list);
+      notifyListeners();
       for (final o in list) {
         if (_alerted.add(o.id)) {
           // Ring for every new offer. A pushed offer already rang via FCM when the app was
           // in the background; in the foreground (or with no push) this local alert rings.
-          PushService.instance.showOfferAlert(o.id, 'New delivery request · ${naira(o.earningKobo)}',
-              'Pickup ${km(o.toPickupKm)} away · ${o.pickup}', expiresIn: o.secondsLeft);
+          try {
+            await PushService.instance.showOfferAlert(o.id, 'New delivery request · ${naira(o.earningKobo)}',
+                'Pickup ${km(o.toPickupKm)} away · ${o.pickup}', expiresIn: o.secondsLeft);
+          } catch (_) {/* no local notifications on this platform */}
         }
       }
-      notifyListeners();
     } catch (_) {
     } finally {
       _polling = false;

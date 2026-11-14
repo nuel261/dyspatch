@@ -1,3 +1,9 @@
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/api/session.dart';
+import 'package:dyspatch_rider/core/services/app_router.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/authentication.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/terms_and_privacy.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/change_password_screen.dart';
@@ -63,15 +69,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    // TODO: once the auth API exists, call the logout endpoint and clear
-    // the stored token / user data here before navigating away.
+    // Logs out on the server, stops live tracking and clears the stack.
+    await AppRouter.signOut(context);
+  }
 
-    // Wipe the whole navigation stack so the back button can't return to
-    // the home screen after logging out.
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const Login()),
-      (route) => false,
-    );
+  String? get _photo {
+    final p = Session.instance.rider?['photo'] as String?;
+    return p == null || p.isEmpty ? null : p;
+  }
+
+  Future<void> _support({required bool email}) async {
+    Map<String, dynamic> cfg = const {};
+    try {
+      cfg = await RiderApi.config();
+    } catch (_) {}
+    final phone = (cfg['support_phone'] as String?) ?? '';
+    final mail = (cfg['support_email'] as String?) ?? 'support@dyspatch.com.ng';
+    final uri = email || phone.isEmpty
+        ? Uri(scheme: 'mailto', path: mail, query: 'subject=Dyspatch Rider help')
+        : Uri(scheme: 'tel', path: phone);
+    if (!await launchUrl(uri) && mounted) showSnack(context, email ? mail : phone);
   }
 
   Widget _menuIcon(BuildContext context, String assetName) {
@@ -83,6 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<Session>();
     final themeProvider = context.watch<ThemeProvider>();
     final isLightMode = !themeProvider.isDarkMode;
     final cardColor = isLightMode
@@ -105,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.maybePop(context),
                       child: Container(
                         decoration: BoxDecoration(
                           color: Theme.of(
@@ -153,13 +171,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundColor: Theme.of(
                             context,
                           ).colorScheme.tertiaryContainer,
-                          // TODO: swap for the real profile photo once
-                          // upload is wired up.
-                          child: Icon(
-                            Icons.person_outline,
-                            size: 50,
-                            color: Colors.grey.shade400,
-                          ),
+                          backgroundImage: _photo == null ? null : NetworkImage(_photo!),
+                          child: _photo != null
+                              ? null
+                              : Icon(
+                                  Icons.person_outline,
+                                  size: 50,
+                                  color: Colors.grey.shade400,
+                                ),
                         ),
                       ),
                     ),
@@ -168,16 +187,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Sophia Ada",
+                        Text(
+                          session.fullName.isEmpty ? 'Rider' : session.fullName,
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontFamily: "Montserrat",
                             fontSize: 20,
                           ),
                         ),
-                        const SizedBox(width: 5),
-                        SvgPicture.asset('assets/images/Verified.svg'),
+                        if (session.kycStatus == 'verified') ...[
+                          const SizedBox(width: 5),
+                          SvgPicture.asset('assets/images/Verified.svg'),
+                        ],
                       ],
                     ),
 
@@ -190,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icon(Icons.star, size: 16, color: Color(0xFFFFB800)),
                         SizedBox(width: 4),
                         Text(
-                          "4.8",
+                          ((session.rider?['rating'] as num?) ?? 5).toStringAsFixed(1),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -208,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         SizedBox(width: 6),
                         Text(
-                          "148 Trips",
+                          "${RiderState.instance.me?['total_deliveries'] ?? 0} Trips",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -256,31 +277,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     MenuCard(
                       color: cardColor,
                       items: [
-                        MenuItem(
-                          icon: _menuIcon(context, 'ph_password.svg'),
-                          label: "Change Password",
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const ChangePasswordScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                        MenuItem(
-                          icon: _menuIcon(context, 'Vector_3.svg'),
-                          label: "Two-Factor Authentification",
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const Autehtication(),
-                              ),
-                            );
-                          },
-                        ),
                         MenuItem(
                           icon: _menuIcon(context, 'ph_verified.svg'),
                           label: "Ride Verification",
@@ -359,12 +355,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         MenuItem(
                           icon: _menuIcon(context, 'ph_question.svg'),
                           label: "Help Center",
-                          onTap: () {},
+                          onTap: () => _support(email: true),
                         ),
                         MenuItem(
                           icon: _menuIcon(context, 'ph_headset.svg'),
                           label: "Contact Support",
-                          onTap: () {},
+                          onTap: () => _support(email: false),
                         ),
                         MenuItem(
                           icon: _menuIcon(context, 'ph_file-text.svg'),

@@ -693,7 +693,10 @@ route('GET', '/rider/me', function () {
     $active = DB::row("SELECT * FROM orders WHERE rider_id = ? AND status IN ('matched','picked_up','en_route','arrived') LIMIT 1", [$r['id']]);
     ok(rider_payload($r) + ['wallet_balance_kobo' => Wallet::balance('rider', (int) $r['id']), 'active_order_id' => $active ? (int) $active['id'] : null,
         'today_earnings_kobo' => (int) DB::value("SELECT COALESCE(SUM(rider_earning_kobo),0) FROM orders WHERE rider_id = ? AND status='delivered' AND DATE(delivered_at) = CURDATE()", [$r['id']]),
-        'today_deliveries' => (int) DB::value("SELECT COUNT(*) FROM orders WHERE rider_id = ? AND status='delivered' AND DATE(delivered_at) = CURDATE()", [$r['id']])]);
+        'today_deliveries' => (int) DB::value("SELECT COUNT(*) FROM orders WHERE rider_id = ? AND status='delivered' AND DATE(delivered_at) = CURDATE()", [$r['id']]),
+        'total_jobs' => (int) DB::value('SELECT COUNT(*) FROM orders WHERE rider_id = ?', [$r['id']]),
+        'total_deliveries' => (int) DB::value("SELECT COUNT(*) FROM orders WHERE rider_id = ? AND status='delivered'", [$r['id']]),
+        'total_earnings_kobo' => (int) DB::value("SELECT COALESCE(SUM(rider_earning_kobo),0) FROM orders WHERE rider_id = ? AND status='delivered'", [$r['id']])]);
 });
 
 route('PUT', '/rider/me', function () {

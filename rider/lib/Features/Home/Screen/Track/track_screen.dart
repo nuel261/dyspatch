@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
 import 'package:dyspatch_rider/core/api/order_view.dart';
 import 'package:dyspatch_rider/core/api/rider_api.dart';
@@ -703,6 +704,16 @@ class _TrackScreenState extends State<TrackScreen>
     }
   }
 
+  Future<void> _openNavigation() async {
+    final p = _ride?.dropoffLocation;
+    if (p == null) {
+      _showSnackbar('Open an order first');
+      return;
+    }
+    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}&travelmode=driving');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   void _handleCall() => OrderActions.call(context, _order);
 
   void _handleChat() => OrderActions.message(context, _order);
@@ -976,7 +987,8 @@ class _TrackScreenState extends State<TrackScreen>
                 // + FAB — always visible
                 const SizedBox(height: 12),
                 GestureDetector(
-                  onTap: () {}, // TODO: wire up later
+                  // Turn-by-turn in Google Maps to the current target.
+                  onTap: _openNavigation,
                   child: Container(
                     width: 72,
                     height: 72,
@@ -993,7 +1005,7 @@ class _TrackScreenState extends State<TrackScreen>
                     ),
                     child: const Padding(
                       padding: EdgeInsets.only(bottom: 6),
-                      child: Icon(Icons.add, color: Colors.white, size: 32),
+                      child: Icon(Icons.navigation_rounded, color: Colors.white, size: 30),
                     ),
                   ),
                 ),

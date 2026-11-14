@@ -1,3 +1,8 @@
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/api/session.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
+import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'dart:io';
 
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/document_capture_screen.dart';
@@ -29,6 +34,88 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
   ];
   String _selectedRideType = "Motorbike";
 
+  final _idNumberController = TextEditingController();
+  String _idType = 'nin';
+  bool _saving = false;
+  Map<String, dynamic> get _extra => Map<String, dynamic>.from((Session.instance.rider?['extra'] as Map?) ?? {});
+
+  static const _typeToApi = {'Motorbike': 'bike', 'Car': 'car', 'Pickup Truck': 'truck', 'Truck': 'truck'};
+
+  @override
+  void initState() {
+    super.initState();
+    final r = Session.instance.rider ?? {};
+    final x = _extra;
+    _plateNumberController.text = (r['plate'] as String?) ?? '';
+    _rideBrandController.text = (x['vehicle_brand'] as String?) ?? '';
+    _rideModelController.text = (x['vehicle_model'] as String?) ?? '';
+    _businessNameController.text = (x['business_name'] as String?) ?? '';
+    _regNumberController.text = (x['business_reg_no'] as String?) ?? '';
+    _businessAddressController.text = (x['business_address'] as String?) ?? '';
+    final saved = x['ride_type'] as String?;
+    if (saved != null && _rideTypes.contains(saved)) {
+      _selectedRideType = saved;
+    } else {
+      _selectedRideType = switch (r['vehicle_type']) { 'car' => 'Car', 'truck' => 'Truck', _ => 'Motorbike' };
+    }
+    _idNumberController.text = (r['id_number'] as String?) ?? '';
+  }
+
+  bool get _fleet => RiderSession.isFleetOwner;
+
+  Future<void> _save() async {
+    String req(TextEditingController c) => c.text.trim();
+    if (req(_plateNumberController).isEmpty || req(_rideBrandController).isEmpty || req(_rideModelController).isEmpty) {
+      return showSnack(context, 'Fill in your plate number, ride brand and model.', error: true);
+    }
+    if (_fleet && (req(_businessNameController).isEmpty || req(_regNumberController).isEmpty || req(_businessAddressController).isEmpty)) {
+      return showSnack(context, 'Fill in your business details.', error: true);
+    }
+    final kycDone = ['submitted', 'verified'].contains(Session.instance.kycStatus);
+    if (!kycDone && (_governmentIdImage == null || req(_idNumberController).isEmpty)) {
+      return showSnack(context, 'Upload your government ID and enter its number.', error: true);
+    }
+    setState(() => _saving = true);
+    try {
+      final extra = <String, dynamic>{
+        'ride_type': _selectedRideType,
+        'vehicle_brand': req(_rideBrandController),
+        'vehicle_model': req(_rideModelController),
+        if (_fleet) ...{
+          'business_name': req(_businessNameController),
+          'business_reg_no': req(_regNumberController),
+          'business_address': req(_businessAddressController),
+        },
+        if (_businessCertificateImage != null)
+          'business_certificate_doc': RiderApi.dataUri(await _businessCertificateImage!.readAsBytes()),
+      };
+      final updated = await RiderApi.updateMe({
+        'plate': req(_plateNumberController),
+        'vehicle_type': _typeToApi[_selectedRideType] ?? 'bike',
+        'extra': extra,
+      });
+      await Session.instance.updateRider(updated);
+      String msg = 'Ride details saved';
+      if (_governmentIdImage != null && req(_idNumberController).isNotEmpty) {
+        final k = await RiderApi.submitKyc(
+          idType: _idType,
+          idNumber: req(_idNumberController),
+          documentDataUri: RiderApi.dataUri(await _governmentIdImage!.readAsBytes()),
+        );
+        msg = (k['message'] as String?) ?? 'Submitted for review';
+        await Session.instance.updateRider(await RiderApi.me());
+        RiderState.instance.refresh();
+      }
+      if (!mounted) return;
+      showSnack(context, msg);
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   void dispose() {
     _plateNumberController.dispose();
@@ -37,6 +124,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
     _businessNameController.dispose();
     _regNumberController.dispose();
     _businessAddressController.dispose();
+    _idNumberController.dispose();
     super.dispose();
   }
 
@@ -126,7 +214,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _rideBrandController,
-                      hint: "e.g. Airport Road",
+                      hint: "e.g. Honda",
                     ),
 
                     const SizedBox(height: 20),
@@ -135,9 +223,10 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                     const SizedBox(height: 8),
                     _InputField(
                       controller: _rideModelController,
-                      hint: "e.g. Airport Road",
+                      hint: "e.g. Ace 110",
                     ),
 
+                    if (_fleet) ...[
                     const SizedBox(height: 20),
 
                     const _FieldLabel(label: "Business name", required: true),
@@ -170,6 +259,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                       controller: _businessAddressController,
                       hint: "e.g. Ring Road",
                     ),
+                    ],
 
                     const SizedBox(height: 20),
 
@@ -193,8 +283,33 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                       },
                     ),
 
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        DropdownButton<String>(
+                          value: _idType,
+                          underline: const SizedBox(),
+                          style: TextStyle(fontFamily: 'Montserrat', fontSize: 13, color: Theme.of(context).colorScheme.inversePrimary),
+                          items: const [
+                            DropdownMenuItem(value: 'nin', child: Text('NIN')),
+                            DropdownMenuItem(value: 'drivers_license', child: Text("Driver's licence")),
+                            DropdownMenuItem(value: 'voters_card', child: Text("Voter's card")),
+                          ],
+                          onChanged: (v) => setState(() => _idType = v ?? 'nin'),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _InputField(
+                            controller: _idNumberController,
+                            hint: "ID number",
+                          ),
+                        ),
+                      ],
+                    ),
+
                     const SizedBox(height: 20),
 
+                    if (_fleet) ...[
                     const _FieldLabel(
                       label: "Upload business certificate",
                       required: true,
@@ -214,6 +329,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         }
                       },
                     ),
+                    ],
 
                     const SizedBox(height: 32),
 
@@ -221,12 +337,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: send the ride + business details and the
-                          // document photos to the API once it exists. For
-                          // now just return to Ride verification.
-                          Navigator.pop(context);
-                        },
+                        onPressed: _saving ? null : _save,
                         style: ElevatedButton.styleFrom(
                           // #34A853 in both light and dark mode.
                           backgroundColor: Theme.of(

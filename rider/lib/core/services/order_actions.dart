@@ -26,8 +26,6 @@ class OrderActions {
     final id = (order['id'] as num).toInt();
     if (_busy.contains(id)) return null;
     final status = order['status'] as String? ?? 'matched';
-    final pos = await LocationService.instance.current();
-    final lat = pos?.latitude, lng = pos?.longitude;
 
     String? code;
     if (status == 'matched' || status == 'arrived') {
@@ -35,6 +33,9 @@ class OrderActions {
       code = await askCode(context, delivery: status == 'arrived', order: order);
       if (code == null) return null;
     }
+    // Stamp the step with where it happened, but never hold the rider up for a GPS fix.
+    final pos = await LocationService.instance.current().timeout(const Duration(seconds: 3), onTimeout: () => null).catchError((_) => null);
+    final lat = pos?.latitude, lng = pos?.longitude;
 
     _busy.add(id);
     try {

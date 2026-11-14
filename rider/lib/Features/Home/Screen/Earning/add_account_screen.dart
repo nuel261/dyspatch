@@ -1,3 +1,6 @@
+import 'package:dyspatch_rider/Features/Home/widget/app_bottom_sheet.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Earning/add_account_sucess_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -12,6 +15,33 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   final _bankNameController = TextEditingController();
   final _accountNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
+  String? _bankCode;
+  List<Map<String, dynamic>> _banks = [];
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    RiderApi.banks().then((b) {
+      if (mounted) setState(() => _banks = b);
+    }).catchError((_) {});
+  }
+
+  Future<void> _pickBank() async {
+    if (_banks.isEmpty) return; // no list: the field stays typeable
+    final picked = await showAppBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      title: 'Select bank',
+      child: _BankPicker(banks: _banks),
+    );
+    if (picked != null) {
+      setState(() {
+        _bankNameController.text = '${picked['name']}';
+        _bankCode = picked['code']?.toString();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -21,7 +51,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     super.dispose();
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final bankName = _bankNameController.text;
     final accountName = _accountNameController.text;
     final accountNumber = _accountNumberController.text;
@@ -34,7 +64,22 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       _showSnack("Enter a valid account number");
       return;
     }
-    // TODO: call your account verification service here
+    setState(() => _saving = true);
+    try {
+      await RiderApi.addBankAccount(
+        bankName: bankName.trim(),
+        bankCode: _bankCode,
+        accountNumber: accountNumber.trim(),
+        accountName: accountName.trim(),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        _showSnack(errorText(e));
+      }
+      return;
+    }
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const AddAccountSuccessScreen()),
@@ -110,6 +155,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                       label: "Bank name *",
                       hint: "e.g. Guaranty Trust Bank",
                       controller: _bankNameController,
+                      readOnly: _banks.isNotEmpty,
+                      onTap: _pickBank,
                     ),
 
                     const SizedBox(height: 20),
@@ -127,6 +174,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                       hint: "e.g. 3124209490",
                       controller: _accountNumberController,
                       keyboardType: TextInputType.number,
+                      maxLength: 10,
                     ),
 
                     const SizedBox(height: 16),
@@ -149,7 +197,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                     // ── Submit button ─────────────────────────────────
                     Center(
                       child: ElevatedButton(
-                        onPressed: _handleSubmit,
+                        onPressed: _saving ? null : _handleSubmit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1D5E2E),
                           foregroundColor: Colors.white,
@@ -162,7 +210,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                           ),
                           elevation: 0,
                         ),
-                        child: const Text(
+                        child: _saving
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                            : const Text(
                           "Submit & Verify",
                           style: TextStyle(
                             fontSize: 15,
@@ -194,12 +244,18 @@ class _LabeledField extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final TextInputType? keyboardType;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final int? maxLength;
 
   const _LabeledField({
     required this.label,
     required this.hint,
     required this.controller,
     this.keyboardType,
+    this.readOnly = false,
+    this.onTap,
+    this.maxLength,
   });
 
   @override
@@ -220,6 +276,9 @@ class _LabeledField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          readOnly: readOnly,
+          onTap: onTap,
+          maxLength: maxLength,
           style: TextStyle(
             fontSize: 14,
             fontFamily: "Montserrat",
@@ -227,6 +286,8 @@ class _LabeledField extends StatelessWidget {
             color: Theme.of(context).colorScheme.inversePrimary,
           ),
           decoration: InputDecoration(
+            counterText: '',
+            suffixIcon: readOnly ? const Icon(Icons.keyboard_arrow_down_rounded) : null,
             hintText: hint,
             hintStyle: const TextStyle(
               fontSize: 14,
@@ -254,6 +315,51 @@ class _LabeledField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BankPicker extends StatefulWidget {
+  final List<Map<String, dynamic>> banks;
+  const _BankPicker({required this.banks});
+
+  @override
+  State<_BankPicker> createState() => _BankPickerState();
+}
+
+class _BankPickerState extends State<_BankPicker> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final list = widget.banks.where((b) => '${b['name']}'.toLowerCase().contains(_q)).toList();
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: Column(
+        children: [
+          TextField(
+            autofocus: true,
+            onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Search banks',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.builder(
+              itemCount: list.length,
+              itemBuilder: (_, i) => ListTile(
+                dense: true,
+                title: Text('${list[i]['name']}', style: AppBottomSheetStyle.optionStyle),
+                onTap: () => Navigator.pop(context, list[i]),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

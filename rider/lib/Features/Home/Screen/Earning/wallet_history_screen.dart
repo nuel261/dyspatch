@@ -1,3 +1,5 @@
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/ui/format.dart';
 import 'package:flutter/material.dart';
 import 'package:dyspatch_rider/Features/Home/model/history_type.dart';
 
@@ -19,40 +21,41 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
     _HistoryFilter.withdrawn: 'Withdrawn',
   };
 
-  // Sample data — replace with your real data source
-  final List<WalletHistoryEntry> _entries = const [
-    WalletHistoryEntry(
-      title: 'Order Delivered',
-      description:
-          'Order #BN4821 was successfully delivered ₦10,000 has been deposited into your wallet.',
-      time: '20 mins ago',
-      dayGroup: 'Today',
-      type: HistoryType.deposited,
-    ),
-    WalletHistoryEntry(
-      title: 'Order Cancelled',
-      description:
-          "Since Order #BN4821 was cancelled during delivery, we've added ₦1,000 to your wallet as a token of our apologies.",
-      time: '20 mins ago',
-      dayGroup: 'Today',
-      type: HistoryType.deposited,
-    ),
-    WalletHistoryEntry(
-      title: 'Money sent successfully',
-      description: 'You have sent ₦10,000 to Dan-John Chibuzor\nBank: GT Bank',
-      time: '07:21 pm',
-      dayGroup: 'Today',
-      type: HistoryType.withdrawn,
-    ),
-    WalletHistoryEntry(
-      title: 'Order Delivered',
-      description:
-          'Order #BN4821 was successfully delivered ₦10,000 has been deposited into your wallet.',
-      time: 'Yesterday',
-      dayGroup: 'Yesterday',
-      type: HistoryType.deposited,
-    ),
-  ];
+  List<WalletHistoryEntry> _entries = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final txs = await RiderApi.transactions();
+      if (!mounted) return;
+      setState(() {
+        _entries = txs.map((t) {
+          final at = parseTime(t['created_at']);
+          final credit = t['type'] == 'credit';
+          final amount = naira((t['amount_kobo'] as num?)?.abs());
+          final desc = (t['description'] as String?)?.trim();
+          return WalletHistoryEntry(
+            title: (t['title'] as String?) ?? (credit ? 'Money received' : 'Money sent'),
+            description: desc?.isNotEmpty == true
+                ? '$desc · ${credit ? '+' : '-'}$amount'
+                : '${credit ? 'Added' : 'Deducted'} $amount',
+            time: timeAgo(at),
+            dayGroup: dayGroup(at),
+            type: credit ? HistoryType.deposited : HistoryType.withdrawn,
+          );
+        }).toList();
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   List<WalletHistoryEntry> get _filtered {
     switch (_selected) {
