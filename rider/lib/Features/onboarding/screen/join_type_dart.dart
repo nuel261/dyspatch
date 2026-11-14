@@ -1,3 +1,5 @@
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/enable_notification.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/otp_screen.dart';
 import 'package:dyspatch_rider/Features/onboarding/utils/button.dart';
@@ -13,6 +15,27 @@ class JoinTypeScreen extends StatefulWidget {
 }
 
 class _JoinTypeScreenState extends State<JoinTypeScreen> {
+  bool _sending = false;
+
+  Future<void> _continue() async {
+    RiderSession.joinType = _selected!;
+    setState(() => _sending = true);
+    try {
+      final res = await RiderApi.requestOtp(widget.phoneNumber);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpScreen(phoneNumber: widget.phoneNumber, start: res, isSignup: true),
+        ),
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   JoinType? _selected;
 
   Widget _buildOption({required String label, required JoinType type}) {
@@ -95,17 +118,8 @@ class _JoinTypeScreenState extends State<JoinTypeScreen> {
                 const Spacer(),
 
                 Button(
-                  onTap: _selected != null
-                      ? () {
-                          RiderSession.joinType = _selected!;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => OtpScreen(phoneNumber: widget.phoneNumber ,),
-                            ),
-                          );
-                        }
-                      : null,
+                  onTap: _selected != null ? _continue : null,
+                  loading: _sending,
                   button_text: "Continue",
                   textColor: Theme.of(context).colorScheme.primary,
                   color: _selected != null

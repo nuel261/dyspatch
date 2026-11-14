@@ -1,3 +1,5 @@
+import 'package:dyspatch_rider/core/api/order_view.dart';
+import 'package:dyspatch_rider/core/services/order_actions.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Track/track_screen.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/delivery_card.dart';
 import 'package:flutter/material.dart';
@@ -34,22 +36,18 @@ class _ActiveOrderDetailsScreenState extends State<ActiveOrderDetailsScreen> {
 
   // Primary CTA: swap this screen to the next phase. Reaching Delivered
   // returns to the list (popping `true`) so it can show the order there.
-  void _advance() {
-    final next = OrderPhase.nextAfter(order.statusLabel);
-    if (next == null) return;
-    final updated =
-        widget.onAdvance?.call(order) ??
-        order.copyWith(
-          statusLabel: next.status,
-          progress: next.progress,
-          progressLabel: next.progressLabel,
-          nextActionLabel: next.actionLabel,
-        );
-    if (next.isFinal) {
+  Map<String, dynamic>? get _raw => OrderActions.byTrack(order.trackId ?? '');
+
+  Future<void> _advance() async {
+    final raw = _raw;
+    if (raw == null) return;
+    final updated = await OrderActions.advance(context, raw);
+    if (updated == null || !mounted) return;
+    if (updated['status'] == 'delivered') {
       Navigator.of(context).pop(true);
       return;
     }
-    setState(() => order = updated);
+    setState(() => order = OrderView.activity(updated));
   }
 
   @override
@@ -323,7 +321,7 @@ class _ActiveOrderDetailsScreenState extends State<ActiveOrderDetailsScreen> {
                               onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => TrackScreen(
-                                    initialOrderId: order.orderId,
+                                    initialOrderId: order.trackId ?? order.orderId,
                                   ),
                                 ),
                               ),
@@ -356,20 +354,29 @@ class _ActiveOrderDetailsScreenState extends State<ActiveOrderDetailsScreen> {
                             ),
                           ),
                           const Spacer(),
-                          _plainIconSvg(
-                            context,
-                            'assets/images/ph_phone-call.svg',
+                          InkResponse(
+                            onTap: () => OrderActions.call(context, _raw),
+                            child: _plainIconSvg(
+                              context,
+                              'assets/images/ph_phone-call.svg',
+                            ),
                           ),
                           const SizedBox(width: 16),
-                          _plainIconSvg(
-                            context,
-                            'assets/images/ph_chat-circle-dots.svg',
+                          InkResponse(
+                            onTap: () => OrderActions.message(context, _raw),
+                            child: _plainIconSvg(
+                              context,
+                              'assets/images/ph_chat-circle-dots.svg',
+                            ),
                           ),
                           const SizedBox(width: 16),
-                          const Icon(
-                            Icons.warning_amber_rounded,
-                            size: 22,
-                            color: Color(0xFFD32F2F),
+                          InkResponse(
+                            onTap: () => OrderActions.reportIssue(context, _raw),
+                            child: const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 22,
+                              color: Color(0xFFD32F2F),
+                            ),
                           ),
                         ],
                       ),

@@ -1,20 +1,42 @@
 import 'dart:async';
+import 'package:dyspatch_rider/Features/Home/Screen/home_screen.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/verification_sucess.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/api/session.dart';
+import 'package:dyspatch_rider/core/services/app_router.dart';
+import 'package:dyspatch_rider/core/services/push_service.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
+import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phoneNumber;
-  const OtpScreen({super.key, required this.phoneNumber});
+
+  /// Response of POST /auth/otp/request: code length, resend cooldown and,
+  /// on test servers, the code itself.
+  final Map<String, dynamic> start;
+
+  /// True when coming from sign-up (names/email/join type to save).
+  final bool isSignup;
+
+  const OtpScreen({
+    super.key,
+    required this.phoneNumber,
+    this.start = const {},
+    this.isSignup = false,
+  });
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  // Change this one constant and the boxes, the label and the
-  // validation all follow.
-  static const int _otpLength = 6;
+  // The server says how long its codes are (4 by default); the boxes, the
+  // label and the validation all follow.
+  late final int _otpLength = (widget.start['length'] as num?)?.toInt() ?? 4;
+  bool _verifying = false;
 
   late List<TextEditingController> _controllers;
   late List<FocusNode> _focusNodes;
@@ -38,12 +60,81 @@ class _OtpScreenState extends State<OtpScreen> {
     super.initState();
     _controllers = List.generate(_otpLength, (_) => TextEditingController());
     _focusNodes = List.generate(_otpLength, (_) => FocusNode());
-    _startTimer();
+    _startTimer((widget.start['resend_in'] as num?)?.toInt() ?? 60);
+    _fillDebugCode(widget.start);
   }
 
-  void _startTimer() {
+  /// Test servers (SMS not live) return the code so testing doesn't need a phone.
+  void _fillDebugCode(Map<String, dynamic> r) {
+    final code = r['debug_code']?.toString();
+    if (code == null || code.length != _otpLength) return;
+    for (var i = 0; i < _otpLength; i++) {
+      _controllers[i].text = code[i];
+    }
+    _otpComplete = true;
+  }
+
+  Future<void> _resend() async {
+    try {
+      final r = await RiderApi.requestOtp(widget.phoneNumber);
+      if (!mounted) return;
+      for (final c in _controllers) {
+        c.clear();
+      }
+      setState(() => _otpComplete = false);
+      _fillDebugCode(r);
+      _startTimer((r['resend_in'] as num?)?.toInt() ?? 60);
+      showSnack(context, 'A new code is on its way.');
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    }
+  }
+
+  Future<void> _verify() async {
+    final otp = _controllers.map((c) => c.text).join();
+    setState(() => _verifying = true);
+    try {
+      final r = await RiderApi.verifyOtp(
+        widget.phoneNumber,
+        otp,
+        firstName: widget.isSignup ? RiderSession.signupFirstName : null,
+        lastName: widget.isSignup ? RiderSession.signupLastName : null,
+      );
+      await Session.instance.save(r['token'] as String, Map<String, dynamic>.from(r['rider'] as Map));
+      if (widget.isSignup) {
+        final fields = <String, dynamic>{'join_type': RiderSession.joinTypeApi};
+        if (RiderSession.signupFirstName.isNotEmpty) fields['first_name'] = RiderSession.signupFirstName;
+        if (RiderSession.signupLastName.isNotEmpty) fields['last_name'] = RiderSession.signupLastName;
+        if (RiderSession.signupEmail.isNotEmpty) fields['email'] = RiderSession.signupEmail;
+        try {
+          await Session.instance.updateRider(await RiderApi.updateMe(fields));
+        } catch (_) {/* saved later from the profile screen */}
+      }
+      RiderSession.syncFrom(Session.instance.rider);
+      PushService.instance.syncToken();
+      RiderState.instance.start();
+      if (!mounted) return;
+      if (widget.isSignup) {
+        AppRouter.goTo(context, const VerficationSucess());
+      } else {
+        AppRouter.goTo(context, const HomeScreen());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showSnack(context, errorText(e), error: true);
+      for (final c in _controllers) {
+        c.clear();
+      }
+      setState(() => _otpComplete = false);
+      _focusNodes.first.requestFocus();
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
+  void _startTimer([int seconds = 60]) {
     setState(() {
-      _secondsRemaining = 30;
+      _secondsRemaining = seconds;
       _canResend = false;
     });
     _timer?.cancel();
@@ -428,7 +519,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: _canResend ? _startTimer : null,
+                        onTap: _canResend ? _resend : null,
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
@@ -467,20 +558,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       width: 200,
                       height: 46,
                       child: ElevatedButton(
-                        onPressed: _otpComplete
-                            ? () {
-                                final otp = _controllers
-                                    .map((c) => c.text)
-                                    .join();
-                                debugPrint(otp); // TODO: handle verify
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => VerficationSucess(),
-                                  ),
-                                );
-                              }
-                            : null,
+                        onPressed: _otpComplete && !_verifying ? _verify : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF34A853),
                           disabledBackgroundColor: const Color(0xFF2D6A3E),
@@ -489,7 +567,13 @@ class _OtpScreenState extends State<OtpScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text(
+                        child: _verifying
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                              )
+                            : const Text(
                           "Verify",
                           style: TextStyle(
                             fontSize: 14,

@@ -5,6 +5,9 @@ import 'package:dyspatch_rider/Features/Home/Screen/Profile/profile_screen.dart'
 import 'package:dyspatch_rider/Features/Home/Screen/Track/track_screen.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/activity/activity_screen.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/home_content.dart';
+import 'package:dyspatch_rider/Features/Home/widget/app_popup.dart';
+import 'package:dyspatch_rider/core/api/order_view.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -36,9 +39,38 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavItem(iconAsset: 'assets/images/ph_user.svg', label: 'Settings'),
   ];
 
+  // Offers we've already popped up for, so each shows once.
+  final Set<int> _popped = {};
+
+  void _onRiderState() {
+    if (!mounted) return;
+    for (final o in RiderState.instance.offers) {
+      if (_popped.add(o.id)) {
+        final card = OrderView.offer(o);
+        AppPopup.newOrder(
+          context,
+          route: card.route,
+          merchant: card.pickupLocation,
+          items: card.items ?? '1 Item',
+          amount: card.amount,
+          eta: card.duration,
+          onTap: () => setState(() => _selectedIndex = 2),
+        );
+        break; // one popup at a time
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    RiderState.instance.removeListener(_onRiderState);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    RiderState.instance.addListener(_onRiderState);
     _pages = [
       HomeContent(onFindNewOrders: () => setState(() => _selectedIndex = 2)),
       const EarningScreen(),

@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS riders (
   location_updated_at DATETIME NULL,
   rating DECIMAL(3,2) NOT NULL DEFAULT 5.00,
   rating_count INT UNSIGNED NOT NULL DEFAULT 0,
+  join_type ENUM('individual','student','fleet') NOT NULL DEFAULT 'individual',
+  profile_extra JSON NULL,                    -- vehicle brand/model, business details, delivery types, document photos
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_online (is_online, status, zone_id),
   CONSTRAINT fk_rider_zone FOREIGN KEY (zone_id) REFERENCES zones(id) ON DELETE SET NULL

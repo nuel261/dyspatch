@@ -1,3 +1,4 @@
+import 'package:dyspatch_rider/core/services/app_router.dart';
 import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/enable_notification.dart';
@@ -65,10 +66,7 @@ class _VerficationSucessState extends State<VerficationSucess> {
 
     // Location is on and permitted — go straight home.
     if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => HomeScreen()),
-    );
+    AppRouter.goTo(context, const HomeScreen());
   }
 
   @override

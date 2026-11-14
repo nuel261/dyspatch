@@ -60,7 +60,18 @@ function rider_payload(array $r): array
         'photo' => public_file($r['photo']), 'vehicle_type' => $r['vehicle_type'], 'plate' => $r['plate'],
         'zone_id' => $r['zone_id'] ? (int) $r['zone_id'] : null, 'kyc_status' => $r['kyc_status'], 'status' => $r['status'],
         'is_online' => (bool) $r['is_online'], 'rating' => (float) $r['rating'],
+        'join_type' => $r['join_type'] ?? 'individual', 'extra' => rider_extra($r) ?: new stdClass(),
+        'created_at' => isset($r['created_at']) ? iso($r['created_at']) : null,
     ];
+}
+
+/** Extra rider-app profile fields; stored file paths come back as full URLs. */
+function rider_extra(array $r): array
+{
+    $x = json_decode((string) ($r['profile_extra'] ?? ''), true);
+    if (!is_array($x)) return [];
+    foreach ($x as $k => $v) if (is_string($v) && str_starts_with($v, 'storage/uploads/')) $x[$k] = public_file($v);
+    return $x;
 }
 
 function tx_payload(array $t): array
@@ -694,6 +705,21 @@ route('PUT', '/rider/me', function () {
     if (isset($in['vehicle_type']) && in_array($in['vehicle_type'], ['bike', 'bicycle', 'car', 'truck'], true)) $upd['vehicle_type'] = $in['vehicle_type'];
     if (!empty($in['zone_code'])) $upd['zone_id'] = DB::value('SELECT id FROM zones WHERE code = ?', [strtoupper($in['zone_code'])]);
     if ($p = save_upload($_FILES['photo'] ?? ($in['photo'] ?? null), 'riders')) $upd['photo'] = $p;
+    if (isset($in['join_type']) && in_array($in['join_type'], ['individual', 'student', 'fleet'], true)) $upd['join_type'] = $in['join_type'];
+    // Free-form extras from the rider app. Text up to 200 chars; values that
+    // are data-URI images/PDFs are saved as files (keys ending in _photo/_doc).
+    if (isset($in['extra']) && is_array($in['extra'])) {
+        $x = json_decode((string) ($r['profile_extra'] ?? ''), true) ?: [];
+        foreach (array_slice($in['extra'], 0, 30, true) as $k => $v) {
+            $k = preg_replace('/[^a-z0-9_]/', '', strtolower((string) $k));
+            if ($k === '') continue;
+            if ($v === null) { unset($x[$k]); continue; }
+            if (is_string($v) && str_starts_with($v, 'data:')) { if ($f = save_upload($v, 'riders')) $x[$k] = $f; continue; }
+            if (is_array($v)) $x[$k] = array_slice(array_map(fn($i) => mb_substr((string) $i, 0, 60), $v), 0, 10);
+            elseif (is_scalar($v)) $x[$k] = mb_substr((string) $v, 0, 200);
+        }
+        $upd['profile_extra'] = json_encode($x, JSON_UNESCAPED_SLASHES);
+    }
     if ($upd) DB::update('riders', $upd, 'id = ?', [$r['id']]);
     ok(rider_payload(DB::row('SELECT * FROM riders WHERE id = ?', [$r['id']])), 'Profile updated');
 });
@@ -773,7 +799,9 @@ function rider_order_payload(array $o): array
         'recipient_name' => $o['recipient_name'], 'recipient_phone' => $o['recipient_phone'], 'package_type' => $o['package_type'],
         'package_description' => $o['package_description'], 'items' => $items, 'payment_method' => $o['payment_method'],
         'collect_cash_kobo' => $o['payment_method'] === 'cash' ? (int) $o['fee_kobo'] : 0, 'earning_kobo' => (int) $o['rider_earning_kobo'],
-        'distance_km' => (float) $o['distance_km'], 'created_at' => iso($o['created_at']), 'delivered_at' => iso($o['delivered_at'])];
+        'distance_km' => (float) $o['distance_km'], 'created_at' => iso($o['created_at']), 'delivered_at' => iso($o['delivered_at']),
+        'matched_at' => iso($o['matched_at']), 'picked_up_at' => iso($o['picked_up_at']), 'arrived_at' => iso($o['arrived_at']),
+        'cancelled_at' => iso($o['cancelled_at']), 'cancel_reason' => $o['cancel_reason'], 'updated_at' => iso($o['updated_at'])];
 }
 
 route('GET', '/rider/orders', function () {
@@ -818,6 +846,21 @@ route('POST', '/rider/orders/{id}/fail', function ($p) {
     $o = Orders::setStatus((int) $o['id'], 'failed', 'rider', (int) $r['id'], req('reason'));
     Notifier::adminAlert("Delivery failed: {$o['track_id']}", '<p>' . e($o['cancel_reason']) . '</p>', app_url('admin/order.php?id=' . $o['id']));
     ok(rider_order_payload($o), 'Reported');
+});
+
+// Non-blocking problem on a live job (traffic, recipient unreachable, …):
+// goes on the order timeline, alerts admin and tells the customer.
+route('POST', '/rider/orders/{id}/issue', function ($p) {
+    $r = ApiAuth::requireRider();
+    $o = rider_order($r, $p['id']);
+    $reason = mb_substr(trim(req('reason', 'Issue')), 0, 120);
+    $note = mb_substr(trim((string) (input()['note'] ?? '')), 0, 255);
+    Orders::event((int) $o['id'], null, $o['status'], 'Rider reported: ' . $reason, $note ?: null, 'rider', (int) $r['id']);
+    Notifier::adminAlert("Rider issue on {$o['track_id']}", '<p>' . e($reason . ($note ? " — $note" : '')) . '</p>', app_url('admin/order.php?id=' . $o['id']));
+    if (!empty($o['user_id'])) {
+        Push::toOwner('user', (int) $o['user_id'], 'Update on your delivery', "Your rider reported: $reason. We're on it.", ['type' => 'order', 'order_id' => (string) $o['id']]);
+    }
+    ok(['reported' => true], 'Issue reported. The customer and our team have been notified.');
 });
 
 route('POST', '/rider/sos', function () {

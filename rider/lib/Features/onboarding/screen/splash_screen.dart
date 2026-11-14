@@ -1,4 +1,4 @@
-import 'package:dyspatch_rider/Features/onboarding/screen/onboarding_screen.dart';
+import 'package:dyspatch_rider/core/services/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -36,14 +36,19 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
+    // Work out the next screen (refreshing the profile if signed in) while
+    // the logo animates, so the hand-off is instant.
+    final next = AppRouter.startScreen();
     _controller.forward().then((_) async {
       await Future.delayed(const Duration(milliseconds: 500));
+      final screen = await next;
       await _controller.reverse();
-      if (mounted)
+      if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+          MaterialPageRoute(builder: (context) => screen),
         );
+      }
     });
   }
 

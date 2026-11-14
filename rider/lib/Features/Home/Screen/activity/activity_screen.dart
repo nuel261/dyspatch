@@ -1,3 +1,7 @@
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/order_view.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
 import 'package:dyspatch_rider/Features/Home/widget/ride_tabs.dart';
 import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'package:dyspatch_rider/Features/Home/widget/app_popup.dart';
@@ -94,271 +98,53 @@ class _ActivityScreenState extends State<ActivityScreen> {
     ActivityFilter.cancelled: 'Cancelled',
   };
 
-  // static const -> static final. expiresAt uses DateTime.now(), which
-  // isn't a compile-time constant, so this map (and the newOrder
-  // entries inside it) can no longer be const.
-  // Sample data — replace with your real data source per category
-  static final Map<ActivityFilter, List<ActivityOrder>> _ordersByFilter = {
-    ActivityFilter.newOrder: [
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 1,
-        items: '3 items',
-        expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-        distance: '4.2km',
-        duration: '18 mins',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 2,
-        items: '3 items',
-        expiresAt: DateTime.now().add(const Duration(minutes: 4, seconds: 20)),
-        distance: '4.2km',
-        duration: '18 mins',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 3,
-        items: '3 items',
-        expiresAt: DateTime.now().add(const Duration(minutes: 3, seconds: 45)),
-        distance: '4.2km',
-        duration: '18 mins',
-      ),
-      ActivityOrder(
-        route: 'Sapele Rd → New Benin Market',
-        pickupLocation: 'New Benin Market',
-        amount: '₦ 3,100',
-        orderId: '#BN4903',
-        ride: 4,
-        items: '3 items',
-        expiresAt: DateTime.now().add(const Duration(minutes: 6, seconds: 10)),
-        distance: '3.5km',
-        duration: '14 mins',
-      ),
-      ActivityOrder(
-        route: 'Airport Rd → GRA',
-        pickupLocation: 'GRA Pharmacy',
-        amount: '₦ 2,900',
-        orderId: '#BN4918',
-        ride: 5,
-        items: '3 items',
-        expiresAt: DateTime.now().add(const Duration(minutes: 5, seconds: 30)),
-        distance: '2.8km',
-        duration: '11 mins',
-      ),
-    ],
-    ActivityFilter.active: [
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 1,
-        eta: 'ETA - 12:41pm',
-        items: '3 items',
-        statusLabel: 'At Pickup',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 2,
-        eta: 'ETA - 12:41pm',
-        items: '3 items',
-        statusLabel: 'Arrived',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 3,
-        eta: 'ETA - 12:41pm',
-        items: '3 Items',
-        statusLabel: 'Picked-up',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-        progress: 0.50,
-        progressLabel:
-            "Congratulations! Now start your journey to customer's Drop-off",
-        nextActionLabel: 'Mark as In Transit',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 4,
-        eta: 'ETA - 12:41pm',
-        items: '3 Items',
-        statusLabel: 'In Transit',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-        progress: 0.75,
-        progressLabel: 'Almost there! Head to drop-off location',
-        nextActionLabel: 'Mark as Delivered',
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 5,
-        eta: 'ETA - 12:41pm',
-        items: '3 Items',
-        statusLabel: 'Heading to Pickup',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-        progress: 0.75,
-        progressLabel: 'Almost there! Head to drop-off location',
-        nextActionLabel: 'Mark as Delivered',
-      ),
-    ],
-    ActivityFilter.delivered: [
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '₦ 4,200',
-        orderId: '#BN4821',
-        ride: 1,
-        eta: 'ETA - 12:41pm',
-        items: '3 Items',
-        statusLabel: 'Delivered',
-        trackId: 'BN-TRK-2402-8F7K3Q',
-        timeline: [
-          TimelineEvent(label: 'Created', time: '11:50am'),
-          TimelineEvent(label: 'Rider accepted', time: '11:55am'),
-          TimelineEvent(label: 'At Pickup', time: '11:59am'),
-          TimelineEvent(label: 'Picked-up', time: '12:04pm'),
-          TimelineEvent(label: 'In-transit', time: '12:05pm'),
-          TimelineEvent(label: 'Arrived', time: '12:41pm'),
-          TimelineEvent(label: 'Delivered', time: '12:45pm'),
-        ],
-      ),
-    ],
+  // Live lists, rebuilt from RiderState (offers + active job) and the
+  // order history endpoint. Static so the reportIssue/cancelByRider hooks
+  // and tab switches see the same data.
+  static final Map<ActivityFilter, List<ActivityOrder>> _ordersByFilter = {};
+  static final Map<int, ActivityOrder> _offerCards = {};
+  static final Map<ActivityOrder, Offer> _offerOf = {};
+  static List<Map<String, dynamic>> _history = [];
+  bool _loading = true;
 
-    ActivityFilter.issues: [
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 1,
-        reportText: 'Report: Wrong pickup address',
-        deliveryPhase: 'Heading to Pickup',
-        autoCancelAt: DateTime.now().add(
-          const Duration(minutes: 9, seconds: 50),
-        ),
-      ),
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 2,
-        reportText: 'Report: Sender unavailable',
-        deliveryPhase: 'At Pickup',
-        autoCancelAt: DateTime.now().add(
-          const Duration(minutes: 7, seconds: 20),
-        ),
-      ),
-    ],
-    // One sample per cancelled-card design.
-    ActivityFilter.cancelled: [
-      // Rider cancelled.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 1,
-        deliveryPhase: 'Heading to Pickup',
-        cancelledDate: 'Today: 12:50pm',
-        reason: 'Reason: Vehicle issue',
-        note: 'You cancelled this order!',
-      ),
-      // Sender cancelled before pickup: compensated, rider is free.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 2,
-        deliveryPhase: 'Heading to Pickup',
-        cancelledDate: 'Today: 12:50pm',
-        compensation: '₦ 500',
-        reason:
-            'So sorry for the stress, order was cancelled by sender on your '
-            'way to the pickup',
-      ),
-      // Sender cancelled mid-delivery: compensated, package goes back.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 3,
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 12:50pm',
-        compensation: '₦ 1,000',
-        reason:
-            'So sorry for the stress, order was cancelled by sender during '
-            'delivery. Return package back!',
-        returnToSender: true,
-      ),
-      // Reassigned: not the rider's fault.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 4,
-        deliveryPhase: 'Heading to Pickup',
-        cancelledDate: 'Today: 12:50pm',
-        note: "You didn't do anything wrong!",
-        reason:
-            'Order was cancelled enroute to pickup. This delivery was '
-            'reassigned',
-        affectsRating: false,
-      ),
-      // Late delivery.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 5,
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 12:50pm',
-        note: 'You exceeded the delivery time',
-        reason: 'Order was cancelled. Delivery is 90mins late',
-      ),
-      // Fraud detected mid-delivery: package goes back.
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4821',
-        ride: 1,
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 12:50pm',
-        note: 'System suspects fraud or malicious activity',
-        reason:
-            'Order was cancelled during delivery due to fraud detection. '
-            'Return package back!',
-        returnToSender: true,
-      ),
-    ],
-  };
+  Future<void> _loadHistory() async {
+    try {
+      _history = await RiderApi.orders(status: 'completed');
+    } catch (_) {/* offline: keep last */}
+    if (mounted) setState(() => _loading = false);
+    _rebuild();
+  }
+
+  void _rebuild() {
+    final rs = RiderState.instance;
+    final liveIds = rs.offers.map((o) => o.id).toSet();
+    _offerCards.removeWhere((id, card) {
+      final gone = !liveIds.contains(id);
+      if (gone) _offerOf.remove(card);
+      return gone;
+    });
+    final newCards = rs.offers.map((o) {
+      final card = _offerCards.putIfAbsent(o.id, () => OrderView.offer(o));
+      _offerOf[card] = o;
+      return card;
+    }).toList();
+    final active = rs.activeOrder;
+    _ordersByFilter
+      ..[ActivityFilter.newOrder] = newCards
+      ..[ActivityFilter.active] = active == null ? [] : [OrderView.activity(active)]
+      ..[ActivityFilter.delivered] = _history.where((o) => o['status'] == 'delivered').map(OrderView.activity).toList()
+      ..[ActivityFilter.issues] = _history.where((o) => o['status'] == 'failed').map(OrderView.activity).toList()
+      ..[ActivityFilter.cancelled] = _history.where((o) => o['status'] == 'cancelled').map(OrderView.activity).toList();
+    if (mounted) setState(() {});
+  }
+
+  int? _lastActiveId;
+  void _onRiderState() {
+    final id = RiderState.instance.activeOrderId;
+    if (_lastActiveId != null && id != _lastActiveId) _loadHistory();
+    _lastActiveId = id;
+    _rebuild();
+  }
 
   // Fleet owners see one ride's orders at a time (1-based).
   int _selectedRide = 1;
@@ -385,19 +171,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
   void initState() {
     super.initState();
     ActivityScreen._changes.addListener(_onExternalChange);
-    // Normalise active sample data to the shared phase table (idempotent,
-    // the map is static and survives tab switches).
-    final active = _ordersByFilter[ActivityFilter.active];
-    if (active != null) {
-      for (var i = 0; i < active.length; i++) {
-        active[i] = _applyPhase(active[i]);
-      }
-    }
+    _lastActiveId = RiderState.instance.activeOrderId;
+    RiderState.instance.addListener(_onRiderState);
+    _rebuild();
+    _loadHistory();
+    if (RiderState.instance.online) RiderState.instance.pollOffers();
   }
 
   @override
   void dispose() {
     ActivityScreen._changes.removeListener(_onExternalChange);
+    RiderState.instance.removeListener(_onRiderState);
     super.dispose();
   }
 
@@ -415,43 +199,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   // Called by ActiveOrderDetailsScreen's primary CTA. Returns the updated
   // order so the details screen can redraw itself. A Delivered order moves
   // from Active to Delivered.
-  ActivityOrder? _advanceOrder(ActivityOrder order) {
-    final active = _ordersByFilter[ActivityFilter.active] ?? [];
-    final index = active.indexOf(order);
-    final next = OrderPhase.nextAfter(order.statusLabel);
-    if (next == null) return null;
-
-    // TODO: tell the API about the status change once it exists.
-    final updated = _applyPhase(order, next);
-    if (next.isFinal) {
-      AppPopup.delivered(
-        context,
-        route: order.route,
-        merchant: order.pickupLocation,
-        amount: order.amount,
-      );
-    }
-    setState(() {
-      if (next.isFinal) {
-        if (index != -1) active.removeAt(index);
-        (_ordersByFilter[ActivityFilter.delivered] ??= []).insert(
-          0,
-          updated.copyWith(
-            eta: 'Delivered at ${_formatTime(DateTime.now())}',
-            timeline: [
-              TimelineEvent(
-                label: 'Delivered',
-                time: _formatTime(DateTime.now()),
-              ),
-            ],
-          ),
-        );
-      } else if (index != -1) {
-        active[index] = updated;
-      }
-    });
-    return updated;
-  }
+  ActivityOrder? _advanceOrder(ActivityOrder order) => null;
 
   // Declined orders stay in the list just long enough for their card to
   // play the exit animation; _LeavingCard then calls _removeNewOrder.
@@ -492,56 +240,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
   // "Heading to Pickup", then switches to the Active tab so the rider sees
   // it. Orders are removed by identity (not orderId) because the sample
   // data reuses the same ID on several cards.
-  void _acceptOrder(ActivityOrder order) {
-    if (_isExpired(order)) {
+  Future<void> _acceptOrder(ActivityOrder order) async {
+    final offer = _offerOf[order];
+    if (offer == null || _isExpired(order)) {
       _removeNewOrder(order);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This order has expired',
-            style: TextStyle(fontFamily: 'Montserrat'),
-          ),
-          backgroundColor: Color(0xFFD32F2F),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showSnack(context, 'This order has expired', error: true);
       return;
     }
-    // TODO: call the accept-order endpoint once the API exists.
-    final eta = DateTime.now().add(
-      Duration(minutes: _minutesFrom(order.duration) ?? 20),
-    );
-    setState(() {
-      _ordersByFilter[ActivityFilter.newOrder]?.remove(order);
-      (_ordersByFilter[ActivityFilter.active] ??= []).insert(
-        0,
-        ActivityOrder(
-          route: order.route,
-          pickupLocation: order.pickupLocation,
-          amount: order.amount,
-          orderId: order.orderId,
-          ride: order.ride,
-          eta: 'ETA - ${_formatTime(eta)}',
-          items: order.items,
-          statusLabel: OrderPhase.all.first.status,
-          trackId: order.trackId,
-          distance: order.distance,
-          duration: order.duration,
-          progress: OrderPhase.all.first.progress,
-          progressLabel: OrderPhase.all.first.progressLabel,
-          nextActionLabel: OrderPhase.all.first.actionLabel,
-        ),
-      );
-      _selected = ActivityFilter.active;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Order ${order.orderId} accepted — head to pickup',
-          style: const TextStyle(fontFamily: 'Montserrat'),
-        ),
-      ),
-    );
+    try {
+      await RiderState.instance.accept(offer);
+      if (!mounted) return;
+      setState(() => _selected = ActivityFilter.active);
+      showSnack(context, 'Order ${order.orderId} accepted — head to pickup');
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    }
   }
 
   void _removeNewOrder(ActivityOrder order) {
@@ -556,8 +269,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
       order.expiresAt != null && !order.expiresAt!.isAfter(DateTime.now());
 
   void _declineOrder(ActivityOrder order) {
-    // TODO: call the decline-order endpoint once the API exists.
+    final offer = _offerOf[order];
     setState(() => _declining.add(order));
+    if (offer != null) RiderState.instance.decline(offer);
   }
 
   /// "18 mins" -> 18
@@ -584,12 +298,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HomeScreen(),
-                      ),
-                    ),
+                    onTap: _goHome,
                     child: Container(
                       width: 40,
                       height: 40,

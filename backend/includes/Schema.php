@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const VERSION = 2;
+    private const VERSION = 3;
 
     public static function ensure(): void
     {
@@ -32,6 +32,10 @@ final class Schema
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 KEY idx_blog_pub (status, published_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // v3: rider app profile fields (join type + extra profile JSON).
+            $cols = array_column(DB::all('SHOW COLUMNS FROM riders'), 'Field');
+            if (!in_array('join_type', $cols, true)) DB::query("ALTER TABLE riders ADD COLUMN join_type ENUM('individual','student','fleet') NOT NULL DEFAULT 'individual' AFTER rating_count");
+            if (!in_array('profile_extra', $cols, true)) DB::query('ALTER TABLE riders ADD COLUMN profile_extra JSON NULL AFTER join_type');
             Website::seedDefaults();
             Blog::seed();
             @mkdir(dirname($flag), 0775, true);

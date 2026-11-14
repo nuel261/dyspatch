@@ -1,3 +1,4 @@
+import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/terms_and_privacy.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/join_type_dart.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/login.dart';
@@ -48,6 +49,9 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   void _continue() {
     if (!_isFormValid) return;
     FocusScope.of(context).unfocus();
+    RiderSession.signupFirstName = _firstNameController.text.trim();
+    RiderSession.signupLastName = _lastNameController.text.trim();
+    RiderSession.signupEmail = _emailController.text.trim();
     Navigator.push(
       context,
       MaterialPageRoute(

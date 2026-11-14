@@ -74,6 +74,8 @@ class RiderApi {
       _map(await _c.post('/rider/orders/$id/deliver', {'code': code, if (photoDataUri != null) 'photo': photoDataUri, ..._at(lat, lng)}));
   static Future<Map<String, dynamic>> fail(int id, String reason) async => _map(await _c.post('/rider/orders/$id/fail', {'reason': reason}));
 
+  static Future<void> reportIssue(int id, String reason, {String? note}) =>
+      _c.post('/rider/orders/$id/issue', {'reason': reason, if (note != null) 'note': note});
   static Future<void> sos(String message) => _c.post('/rider/sos', {'message': message});
 
   // ── Wallet & payouts ──

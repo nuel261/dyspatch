@@ -1,3 +1,11 @@
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/order_view.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/services/order_actions.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
+import 'package:dyspatch_rider/core/ui/format.dart' show parseTime;
+import 'package:dyspatch_rider/core/ui/map_tiles.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:dyspatch_rider/Features/Home/Screen/activity/activity_screen.dart';
 import 'package:dyspatch_rider/Features/Home/model/order_phase.dart';
@@ -39,55 +47,8 @@ class _TrackScreenState extends State<TrackScreen>
   final TextEditingController _orderIdController = TextEditingController();
   StreamSubscription<LocationData>? _locationSub;
 
-  // ── Mock orders ───────────────────────────────────────
-  // NOTE: added a `merchant` name for the pickup phase. If RideModel
-  // doesn't already have a `merchantName` field, add:
-  //   final String merchantName;
-  // to ride_model.dart and thread it through the constructor below.
-  static final Map<String, Map<String, dynamic>> _mockOrders = {
-    'BN4821': {
-      'status': RideStatus.matched,
-      'merchant': 'Benin Agro Mart',
-      'address': 'Ring Rd → Textile Mill Rd',
-      'eta': 18,
-      'dropoff': const LatLng(6.4281, 3.4219),
-      'rider': {
-        'name': 'John Akin',
-        'photo': 'https://i.pravatar.cc/150?img=8',
-        'rating': 4.8,
-        'plate': 'LAG-234-XY',
-        'phone': '+2348012345678',
-      },
-    },
-    'BN4871': {
-      'status': RideStatus.arrived,
-      'merchant': 'Ikeja Fresh Foods',
-      'address': 'Ikeja → Allen Ave',
-      'eta': 0,
-      'dropoff': const LatLng(6.6018, 3.3515),
-      'rider': {
-        'name': 'Emeka Bello',
-        'photo': 'https://i.pravatar.cc/150?img=12',
-        'rating': 4.5,
-        'plate': 'LAG-102-AB',
-        'phone': '+2348098765432',
-      },
-    },
-    'BN4901': {
-      'status': RideStatus.delivered,
-      'merchant': 'Lekki Bake House',
-      'address': 'Lekki Phase 1 → Ajah',
-      'eta': 0,
-      'dropoff': const LatLng(6.4698, 3.5852),
-      'rider': {
-        'name': 'Tunde Ojo',
-        'photo': 'https://i.pravatar.cc/150?img=15',
-        'rating': 4.9,
-        'plate': 'LAG-567-MN',
-        'phone': '+2348033344455',
-      },
-    },
-  };
+  // The live backend order shown on the map (raw JSON).
+  Map<String, dynamic>? _order;
 
   // ── Location State ────────────────────────────────────
   bool _isLocating = true;
@@ -116,15 +77,9 @@ class _TrackScreenState extends State<TrackScreen>
   late AnimationController _cardAnimController;
   late Animation<Offset> _cardSlideAnimation;
 
-  // ── Timeline steps ────────────────────────────────────
-  static const List<Map<String, String>> _timelineSteps = [
-    {'label': 'Created', 'time': '11:50am'},
-    {'label': 'Rider-Assigned', 'time': '11:55am'},
-    {'label': 'Picked-up', 'time': '12:04pm'},
-    {'label': 'In-transit', 'time': '12:05pm'},
-    {'label': 'Arrived', 'time': '12:41pm'},
-    {'label': 'Delivered', 'time': '12:45pm'},
-  ];
+  List<Map<String, String>> get _timelineSteps => _order == null
+      ? const []
+      : OrderView.timeline(_order!).map((e) => {'label': e.label, 'time': e.time}).toList();
 
   // ── Statuses that belong to the "pickup" phase (merchant side) ──
   @override
@@ -140,7 +95,9 @@ class _TrackScreenState extends State<TrackScreen>
           CurvedAnimation(parent: _cardAnimController, curve: Curves.easeOut),
         );
 
-    final initialId = widget.initialOrderId?.replaceAll('#', '').trim();
+    final initialId = (widget.initialOrderId ?? RiderState.instance.activeOrder?['track_id']?.toString())
+        ?.replaceAll('#', '')
+        .trim();
     if (initialId != null && initialId.isNotEmpty) {
       _orderIdController.text = initialId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -269,38 +226,17 @@ class _TrackScreenState extends State<TrackScreen>
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      final order = await _findOrder(orderId);
+      if (order == null) throw Exception('Not found');
+      final ride = _rideFrom(order);
+      _order = order;
 
-      final orderData = _mockOrders[orderId];
-      if (orderData == null) throw Exception('Not found');
-
-      final riderData = orderData['rider'] as Map<String, dynamic>;
-      final ride = RideModel(
-        orderId: orderId,
-        status: orderData['status'] as RideStatus,
-        dropoffLocation: orderData['dropoff'] as LatLng,
-        dropoffAddress: orderData['address'] as String,
-        etaMinutes: orderData['eta'] as int,
-        rider: RiderModel(
-          name: riderData['name'] as String,
-          photoUrl: riderData['photo'] as String,
-          rating: riderData['rating'] as double,
-          plate: riderData['plate'] as String,
-          phone: riderData['phone'] as String,
-        ),
-      );
-
-      // if order already arrived/delivered, set timestamps
-      final now = DateTime.now();
-      if (ride.status == RideStatus.arrived) {
-        _arrivedAt = now;
-      } else if (ride.status == RideStatus.delivered) {
-        _deliveredAt = now;
-      }
+      _arrivedAt = parseTime(order['arrived_at']);
+      _deliveredAt = parseTime(order['delivered_at']);
 
       setState(() {
         _ride = ride;
-        _merchantName = orderData['merchant'] as String?;
+        _merchantName = _contactName(order);
         _etaMinutes = ride.etaMinutes;
         _status = ride.status;
         _isSearching = false;
@@ -319,6 +255,72 @@ class _TrackScreenState extends State<TrackScreen>
     }
   }
 
+  /// Finds one of this rider's orders by track id, order number or id.
+  Future<Map<String, dynamic>?> _findOrder(String q) async {
+    bool match(Map<String, dynamic> o) {
+      final keys = [o['track_id'], o['order_no'], o['id']].map((v) => (v ?? '').toString().toUpperCase().replaceAll('#', ''));
+      return keys.contains(q.replaceAll('#', ''));
+    }
+
+    final active = RiderState.instance.activeOrder;
+    if (active != null && match(active)) return RiderApi.order((active['id'] as num).toInt());
+    final all = await RiderApi.orders();
+    for (final o in all) {
+      if (match(o)) return o;
+    }
+    return null;
+  }
+
+  /// Where the rider is heading now: pickup before collecting, then drop-off.
+  bool get _toPickup => (_order?['status'] as String? ?? 'matched') == 'matched';
+
+  RideModel _rideFrom(Map<String, dynamic> o) {
+    final status = o['status'] as String? ?? 'matched';
+    final target = Map<String, dynamic>.from((status == 'matched' ? o['pickup'] : o['dropoff']) as Map? ?? {});
+    final km = (o['distance_km'] as num?)?.toDouble() ?? 5;
+    return RideModel(
+      orderId: OrderView.orderNo(o),
+      status: RideStatus.fromString(status),
+      dropoffLocation: LatLng((target['lat'] as num?)?.toDouble() ?? 0, (target['lng'] as num?)?.toDouble() ?? 0),
+      dropoffAddress: (target['address'] as String?) ?? '',
+      etaMinutes: (km * 3).round().clamp(1, 999),
+      rider: RiderModel(
+        name: _contactName(o),
+        photoUrl: '',
+        rating: 0,
+        plate: '',
+        phone: ((status == 'matched' ? o['sender_phone'] : o['recipient_phone']) as String?) ?? '',
+      ),
+    );
+  }
+
+  String _contactName(Map<String, dynamic> o) {
+    final pickup = (o['status'] as String? ?? 'matched') == 'matched';
+    final n = ((pickup ? o['sender_name'] : o['recipient_name']) as String?)?.trim() ?? '';
+    return n.isEmpty ? (pickup ? 'Sender' : 'Recipient') : '${pickup ? 'Pickup' : 'Drop-off'} · $n';
+  }
+
+  /// Runs the next backend step and refreshes the map for the new phase.
+  Future<void> _advance() async {
+    if (_order == null) return;
+    final updated = await OrderActions.advance(context, _order!);
+    if (updated == null || !mounted) return;
+    setState(() {
+      _order = updated;
+      _ride = _rideFrom(updated);
+      _status = _ride!.status;
+      _merchantName = _contactName(updated);
+      _arrivedAt = parseTime(updated['arrived_at']);
+      _deliveredAt = parseTime(updated['delivered_at']);
+    });
+    if (_status == RideStatus.delivered) {
+      _pollingTimer?.cancel();
+    } else {
+      await _fetchRiderLocationAndRoute();
+      _fitMapToRide();
+    }
+  }
+
   // ── Polling ───────────────────────────────────────────
   Future<void> _fetchRiderLocationAndRoute() async {
     if (_ride == null) return;
@@ -327,10 +329,11 @@ class _TrackScreenState extends State<TrackScreen>
       return;
     }
 
-    final mockRiderLocation = LatLng(
-      _ride!.dropoffLocation.latitude + 0.008,
-      _ride!.dropoffLocation.longitude,
-    );
+    // In the rider app "the rider" is this phone: route from here to the
+    // pickup (before collecting) or the drop-off.
+    final here = _currentLocation;
+    if (here == null) return;
+    final mockRiderLocation = here;
 
     // Try OSRM, fall back to straight line
     List<LatLng> route = [mockRiderLocation, _ride!.dropoffLocation];
@@ -350,7 +353,7 @@ class _TrackScreenState extends State<TrackScreen>
     if (!mounted) return;
     setState(() {
       _riderLocation = mockRiderLocation;
-      _etaMinutes = _etaMinutes > 0 ? _etaMinutes : 11;
+      _etaMinutes = (const Distance().as(LengthUnit.Kilometer, here, _ride!.dropoffLocation) * 3).round().clamp(1, 999);
       _route = route;
     });
   }
@@ -359,7 +362,7 @@ class _TrackScreenState extends State<TrackScreen>
     if (_status == RideStatus.arrived || _status == RideStatus.delivered) {
       return;
     }
-    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _fetchRiderLocationAndRoute();
     });
   }
@@ -414,18 +417,8 @@ class _TrackScreenState extends State<TrackScreen>
   }
 
   // ── Confirm Pickup (matched/otpVerified → pickedUp) ───
-  Future<void> _handleConfirmPickup() async {
-    final confirmed = await _confirmDialog(
-      title: 'Confirm Pickup',
-      content: 'Confirm that the parcel has been picked up from the merchant?',
-      confirmLabel: 'Confirm',
-      confirmColor: _statusColor(RideStatus.matched),
-    );
-    if (!confirmed) return;
+  Future<void> _handleConfirmPickup() => _advance();
 
-    // TODO: await TrackingService.confirmPickup(_ride!.orderId);
-    setState(() => _status = RideStatus.pickedUp);
-  }
 
   // ── Mark as In Transit (pickedUp → enRoute) ───────────
   Future<void> _handleMarkInTransit() async {
@@ -435,11 +428,9 @@ class _TrackScreenState extends State<TrackScreen>
       confirmLabel: 'Confirm',
       confirmColor: _statusColor(RideStatus.pickedUp),
     );
-    if (!confirmed) return;
-
-    // TODO: await TrackingService.startTransit(_ride!.orderId);
-    setState(() => _status = RideStatus.enRoute);
+    if (confirmed) await _advance();
   }
+
 
   // ── Mark as Arrived (enRoute → arrived) ───────────────
   Future<void> _handleMarkArrived() async {
@@ -449,33 +440,13 @@ class _TrackScreenState extends State<TrackScreen>
       confirmLabel: 'Confirm',
       confirmColor: _statusColor(RideStatus.enRoute),
     );
-    if (!confirmed) return;
-
-    // TODO: await TrackingService.markArrived(_ride!.orderId);
-    setState(() {
-      _status = RideStatus.arrived;
-      _arrivedAt = DateTime.now();
-    });
-    _pollingTimer?.cancel();
+    if (confirmed) await _advance();
   }
+
 
   // ── Mark as Delivered (arrived → delivered) ───────────
-  Future<void> _handleMarkDelivered() async {
-    final confirmed = await _confirmDialog(
-      title: 'Confirm Delivery',
-      content: 'Mark this parcel as delivered?',
-      confirmLabel: 'Confirm',
-      confirmColor: _statusColor(RideStatus.arrived),
-    );
-    if (!confirmed) return;
+  Future<void> _handleMarkDelivered() => _advance();
 
-    // TODO: await TrackingService.markDelivered(_ride!.orderId);
-    setState(() {
-      _status = RideStatus.delivered;
-      _deliveredAt = DateTime.now();
-    });
-    _pollingTimer?.cancel();
-  }
 
   // ── Timeline sheet ────────────────────────────────────
 
@@ -587,7 +558,10 @@ class _TrackScreenState extends State<TrackScreen>
   // ── Actions ───────────────────────────────────────────
 
   Future<void> _handleShare() async {
-    _showSnackbar('Share link copied! (backend pending)');
+    final id = (_order?['track_id'] ?? '').toString();
+    if (id.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: id));
+    _showSnackbar('Track ID copied');
   }
 
   // ⚠ on the delivery card: pick a reason, or cancel the ride outright.
@@ -599,7 +573,12 @@ class _TrackScreenState extends State<TrackScreen>
     final reason = result.reason!;
     if (reason == IssueReason.emergency) return _handleSOS();
     if (reason == IssueReason.contactSupport) {
-      _showSnackbar('Connecting you to support... (backend pending)');
+      try {
+        await RiderApi.sos('Rider needs support on order ${_order?['track_id']}');
+        _showSnackbar('Support has been alerted and will reach you shortly.');
+      } catch (e) {
+        _showSnackbar(errorText(e));
+      }
       return;
     }
 
@@ -634,18 +613,15 @@ class _TrackScreenState extends State<TrackScreen>
     }
   }
 
-  void _reportIssue(IssueReason reason) {
+  Future<void> _reportIssue(IssueReason reason) async {
     _followupTimer?.cancel();
-    // TODO: await TrackingService.reportIssue(_ride!.orderId, reason);
-    ActivityScreen.reportIssue(
-      orderId: _ride!.orderId,
-      route: _ride!.dropoffAddress,
-      pickupLocation: _merchantName ?? '',
-      deliveryPhase: _statusLabel(_status),
-      reason: reason.label,
-    );
-    AppPopup.issue(context);
-    _leave();
+    if (_order == null) return;
+    try {
+      await RiderApi.reportIssue((_order!['id'] as num).toInt(), reason.label);
+      if (mounted) AppPopup.issue(context);
+    } catch (e) {
+      _showSnackbar(errorText(e));
+    }
   }
 
   Future<void> _handleCancelRide() async {
@@ -657,15 +633,14 @@ class _TrackScreenState extends State<TrackScreen>
     );
     if (!confirmed || _ride == null) return;
 
-    // TODO: await TrackingService.cancelRide(_ride!.orderId);
-    ActivityScreen.cancelByRider(
-      orderId: _ride!.orderId,
-      route: _ride!.dropoffAddress,
-      pickupLocation: _merchantName ?? '',
-      deliveryPhase: _statusLabel(_status),
-    );
-    _showSnackbar('Ride cancelled.');
-    _leave();
+    try {
+      final updated = await RiderApi.fail((_order!['id'] as num).toInt(), 'Cancelled by rider');
+      RiderState.instance.setActiveOrder(updated);
+      _showSnackbar('Ride cancelled.');
+      _leave();
+    } catch (e) {
+      _showSnackbar(errorText(e));
+    }
   }
 
   // Same as the map's back button.
@@ -713,23 +688,24 @@ class _TrackScreenState extends State<TrackScreen>
       ),
     );
     if (confirmed != true) return;
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('SOS sent. Our team has been alerted.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    try {
+      await RiderApi.sos('Emergency on order ${_order?['track_id'] ?? '-'}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SOS sent. Our team has been alerted.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      _showSnackbar(errorText(e));
     }
   }
 
-  void _handleCall() {
-    _showSnackbar('Calling ${_ride?.rider.phone ?? ''}...');
-  }
+  void _handleCall() => OrderActions.call(context, _order);
 
-  void _handleChat() {
-    _showSnackbar('Chat coming soon');
-  }
+  void _handleChat() => OrderActions.message(context, _order);
 
   void _showSnackbar(String message) {
     if (!mounted) return;
@@ -809,11 +785,7 @@ class _TrackScreenState extends State<TrackScreen>
                     maxZoom: 18,
                   ),
                   children: [
-                    TileLayer(
-                      urlTemplate: tileUrl,
-                      subdomains: const ['a', 'b', 'c', 'd'],
-                      userAgentPackageName: 'com.dyspatch.rider',
-                    ),
+                    tiles(context),
                     CurrentLocationLayer(
                       alignPositionOnUpdate: AlignOnUpdate.once,
                       style: LocationMarkerStyle(
@@ -860,6 +832,7 @@ class _TrackScreenState extends State<TrackScreen>
                           ),
                         ],
                       ),
+                    osmCredit(),
                     if (_route.isNotEmpty)
                       PolylineLayer(
                         polylines: [

@@ -1,5 +1,8 @@
 import 'package:dyspatch_rider/Features/Home/Screen/Profile/Settings/terms_and_privacy.dart';
+import 'package:dyspatch_rider/Features/onboarding/screen/account_details_screen.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/otp_screen.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
 import 'package:dyspatch_rider/Features/onboarding/screen/register.dart';
 import 'package:dyspatch_rider/Features/onboarding/utils/button.dart';
 import 'package:dyspatch_rider/Features/onboarding/utils/phone_input.dart';
@@ -15,6 +18,32 @@ class Login extends StatefulWidget {
 class _LoginState extends State<Login> {
   bool isPhoneValid = false;
   String phoneNumber = '';
+  bool _sending = false;
+
+  Future<void> _continue() async {
+    setState(() => _sending = true);
+    try {
+      final res = await RiderApi.requestOtp(phoneNumber);
+      if (!mounted) return;
+      if (res['is_registered'] == false) {
+        // New number: collect the sign-up details first, then verify.
+        showSnack(context, "There's no rider account for this number yet. Let's create one.");
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AccountDetailsScreen(phoneNumber: phoneNumber)),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => OtpScreen(phoneNumber: phoneNumber, start: res)),
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, errorText(e), error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,17 +118,8 @@ class _LoginState extends State<Login> {
                 ),
                 Spacer(),
                 Button(
-                  onTap: isPhoneValid
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  OtpScreen(phoneNumber: phoneNumber),
-                            ),
-                          );
-                        }
-                      : null, // blocks tap when invalid
+                  onTap: isPhoneValid ? _continue : null, // blocks tap when invalid
+                  loading: _sending,
                   button_text: "Continue",
                   textColor: Theme.of(context).colorScheme.primary,
                   color: isPhoneValid

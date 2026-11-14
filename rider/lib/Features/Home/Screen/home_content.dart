@@ -11,6 +11,12 @@ import 'package:dyspatch_rider/Features/Home/model/order_phase.dart';
 import 'dart:async';
 
 import 'package:dyspatch_rider/Features/Home/widget/pulsating_dot.dart';
+import 'package:dyspatch_rider/Features/onboarding/utils/snack.dart';
+import 'package:dyspatch_rider/core/api/order_view.dart';
+import 'package:dyspatch_rider/core/api/rider_api.dart';
+import 'package:dyspatch_rider/core/api/session.dart';
+import 'package:dyspatch_rider/core/services/order_actions.dart';
+import 'package:dyspatch_rider/core/services/rider_state.dart';
 import 'package:dyspatch_rider/core/utils/rider_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -27,7 +33,6 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
-  bool _isOnline = true;
 
   // Drives the "Access to location required" banner at the top of the
   // screen. True when location services are off OR the app lacks
@@ -36,263 +41,47 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
   StreamSubscription<ServiceStatus>? _serviceStatusSub;
   final TextEditingController _searchController = TextEditingController();
 
-  // CHANGED: no longer `static const`. These now need to mutate at
-  // runtime (Picked-up -> In Transit -> Delivered moves an order out of
-  // _activeOrders and into _recentOrders), so they're plain mutable
-  // instance fields seeded once in initState.
-  late List<DeliveryModel> _activeOrders;
-  late List<_RecentOrder> _recentOrders;
+  // Live data: the active job comes from RiderState (one at a time on the
+  // backend), recent orders from GET /rider/orders?status=completed.
+  final Map<String, Map<String, dynamic>> _ordersByTrack = {};
+  List<_RecentOrder> _recentOrders = [];
+  int? _lastActiveId;
   final ScrollController _scrollController = ScrollController();
 
-  static const List<DeliveryModel> _initialActiveOrders = [
-    DeliveryModel(
-      route: 'Ring Rd → Textile Mill Rd',
-      status: 'Heading to Pickup',
-      statusColor: Color(0xFFFFCC00), // amber/yellow
-      orderId: '#BN4821',
-      pickupLocation: 'Benin Agro Mart',
-      eta: 'ETA - 12:41pm',
-      items: '3 Items',
-      amount: '₦ 4,200',
-      trackId: 'BN-TRK-2402-8F7K3Q',
-      progress: 0.10,
-      progressLabel: "You're on your way to pickup",
-      actionLabel: 'Confirm Pickup',
-      actionColor: Color(0xFFFFCC00),
-    ),
-    DeliveryModel(
-      route: 'Sapele Rd → New Benin Market',
-      status: 'At Pickup',
-      statusColor: Color(0xFFF2800A), // orange
-      orderId: '#BN4835',
-      pickupLocation: 'New Benin Market',
-      eta: 'ETA - 1:05pm',
-      items: '5 Items',
-      amount: '₦ 6,750',
-      trackId: 'BN-TRK-2402-3P9L2R',
-      progress: 0.30,
-      progressLabel: 'Verify package before confirming',
-      actionLabel: 'Confirm Pickup',
-      actionColor: Color(0xFFF2800A),
-    ),
-    DeliveryModel(
-      route: 'Airport Rd → GRA',
-      status: 'Picked-up',
-      statusColor: Color(0xFF9C27B0), // purple
-      orderId: '#BN4849',
-      pickupLocation: 'GRA Pharmacy',
-      eta: 'ETA - 1:30pm',
-      items: '1 Item',
-      amount: '₦ 2,100',
-      trackId: 'BN-TRK-2402-6D4M8T',
-      progress: 0.50,
-      progressLabel:
-          "Congratulations! Now start your journey to customer's Drop-off",
-      // CHANGED: Picked-up now surfaces the "Mark as In Transit" action
-      // immediately, matching the design — it no longer sits empty.
-      actionLabel: 'Mark as In Transit',
-      actionColor: Color(0xFF9C27B0), // violet
-    ),
-    DeliveryModel(
-      route: 'Upper Sakponba → Uselu Market',
-      status: 'In Transit',
-      statusColor: Color(0xFFFFCC00),
-      orderId: '#BN4862',
-      pickupLocation: 'Uselu Market',
-      eta: 'ETA - 1:50pm',
-      items: '4 Items',
-      amount: '₦ 3,900',
-      trackId: 'BN-TRK-2402-9K2W7H',
-      progress: 0.15,
-      progressLabel: "You're on your way to pickup",
-      actionLabel: 'Confirm Pickup',
-      actionColor: Color(0xFFFFCC00),
-    ),
-    DeliveryModel(
-      route: 'Ekiosa St → Oliha Market',
-      status: 'Arrived',
-      statusColor: Color(0xFFF2800A),
-      orderId: '#BN4877',
-      pickupLocation: 'Oliha Market',
-      eta: 'ETA - 2:10pm',
-      items: '2 Items',
-      amount: '₦ 5,300',
-      trackId: 'BN-TRK-2402-4L8X1B',
-      progress: 0.35,
-      progressLabel: 'Verify package before confirming',
-      actionLabel: 'Confirm Pickup',
-      actionColor: Color(0xFFF2800A),
-    ),
-    DeliveryModel(
-      route: 'Siluko Rd → Ugbowo',
-      status: 'Picked-up',
-      statusColor: Color(0xFF9C27B0),
-      orderId: '#BN4891',
-      pickupLocation: 'Ugbowo Shopping Complex',
-      eta: 'ETA - 2:25pm',
-      items: '6 Items',
-      amount: '₦ 8,150',
-      trackId: 'BN-TRK-2402-1R5N9Z',
-      progress: 0.55,
-      progressLabel:
-          "Congratulations! Now start your journey to customer's Drop-off",
-      actionLabel: 'Mark as In Transit',
-      actionColor: Color(0xFFB4043),
-    ),
-    DeliveryModel(
-      route: 'Lagos St → Ikpoba Hill',
-      status: 'Heading to Pickup',
-      statusColor: Color(0xFFFFCC00),
-      orderId: '#BN4904',
-      pickupLocation: 'Ikpoba Hill Store',
-      eta: 'ETA - 2:45pm',
-      items: '1 Item',
-      amount: '₦ 1,600',
-      trackId: 'BN-TRK-2402-7T3Y4C',
-      progress: 0.05,
-      progressLabel: "You're on your way to pickup",
-      actionLabel: 'Confirm Pickup',
-      actionColor: Color(0xFFFFCC00),
-    ),
-  ];
+  bool get _isOnline => RiderState.instance.online;
 
-  static DeliveryModel _delivered(String orderId, String trackId) =>
-      DeliveryModel(
-        route: 'Ring Rd → Textile Mill Rd',
-        status: 'Delivered',
-        statusColor: const Color(0xFF298341),
-        orderId: orderId,
-        pickupLocation: 'Benin Agro Mart',
-        eta: 'ETA - 12:41pm',
-        items: '3 items',
-        amount: '₦ 4,200',
-        trackId: trackId,
-        progress: 1.0,
-        progressLabel: 'Delivered successfully!',
-        actionLabel: '',
-        actionColor: const Color(0xFF298341),
-        isCompleted: true,
-      );
+  List<DeliveryModel> get _activeOrders {
+    final o = RiderState.instance.activeOrder;
+    if (o == null) return const [];
+    _ordersByTrack[(o['track_id'] ?? '').toString()] = o;
+    return [OrderView.delivery(o)];
+  }
 
-  // Sample Recent Orders, one per Recent-card design: delivered cards and
-  // each cancelled variant (rider cancelled, sender cancelled with
-  // compensation, late, fraud).
-  static final List<_RecentOrder> _initialRecentOrders = [
-    _RecentOrder.delivered(_delivered('#BN4802', 'BN-TRK-2401-7A2K1M')),
-    _RecentOrder.delivered(_delivered('#BN4798', 'BN-TRK-2401-5C9H2D')),
-    const _RecentOrder.cancelled(
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4795',
-        trackId: 'BN-TRK-2401-2F6Q8V',
-        deliveryPhase: 'Heading to Pickup',
-        cancelledDate: 'Today: 11:20am',
-        note: 'You cancelled this order!',
-        reason: 'Reason: Vehicle issue',
-      ),
-    ),
-    const _RecentOrder.cancelled(
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4791',
-        trackId: 'BN-TRK-2401-8M3T5K',
-        deliveryPhase: 'Heading to Pickup',
-        cancelledDate: 'Today: 10:58am',
-        compensation: '₦ 500',
-        reason:
-            'So sorry for the stress, order was cancelled by sender on your '
-            'way to the pickup',
-      ),
-    ),
-    const _RecentOrder.cancelled(
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4787',
-        trackId: 'BN-TRK-2401-4W7N1P',
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 10:31am',
-        compensation: '₦ 1,000',
-        reason:
-            'So sorry for the stress, order was cancelled by sender during '
-            'delivery. Return package back!',
-        returnToSender: true,
-      ),
-    ),
-    _RecentOrder.delivered(_delivered('#BN4783', 'BN-TRK-2401-9B4E6J')),
-    const _RecentOrder.cancelled(
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4779',
-        trackId: 'BN-TRK-2401-6R2Y9L',
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 9:47am',
-        note: 'System suspects fraud or malicious activity',
-        reason:
-            'Order was cancelled during delivery due to fraud detection. '
-            'Return package back!',
-        returnToSender: true,
-      ),
-    ),
-    const _RecentOrder.cancelled(
-      ActivityOrder(
-        route: 'Ring Rd → Textile Mill Rd',
-        pickupLocation: 'Benin Agro Mart',
-        amount: '',
-        orderId: '#BN4775',
-        trackId: 'BN-TRK-2401-3H8U4S',
-        deliveryPhase: 'In Transit',
-        cancelledDate: 'Today: 9:15am',
-        note: 'You exceeded the delivery time',
-        reason: 'Order was cancelled. Delivery is 90mins late',
-      ),
-    ),
-    _RecentOrder.delivered(_delivered('#BN4771', 'BN-TRK-2401-1K5Z7G')),
-    _RecentOrder.delivered(_delivered('#BN4766', 'BN-TRK-2401-7P3A2X')),
-    _RecentOrder.delivered(_delivered('#BN4760', 'BN-TRK-2401-5D1F8M')),
-  ];
+  Future<void> _loadRecent() async {
+    try {
+      final list = await RiderApi.orders(status: 'completed');
+      if (!mounted) return;
+      setState(() {
+        _recentOrders = list.map((o) {
+          _ordersByTrack[(o['track_id'] ?? '').toString()] = o;
+          return o['status'] == 'delivered'
+              ? _RecentOrder.delivered(OrderView.delivery(o), raw: o)
+              : _RecentOrder.cancelled(OrderView.activity(o), raw: o);
+        }).toList();
+      });
+    } catch (_) {/* offline: keep what we have */}
+  }
 
-  // TODO: the API should return each delivered order's real timeline.
-  static const List<TimelineEvent> _sampleTimeline = [
-    TimelineEvent(label: 'Created', time: '11:50am'),
-    TimelineEvent(label: 'Rider accepted', time: '11:55am'),
-    TimelineEvent(label: 'At Pickup', time: '11:59am'),
-    TimelineEvent(label: 'Picked-up', time: '12:04pm'),
-    TimelineEvent(label: 'In-transit', time: '12:05pm'),
-    TimelineEvent(label: 'Arrived', time: '12:41pm'),
-    TimelineEvent(label: 'Delivered', time: '12:45pm'),
-  ];
+  void _onRiderState() {
+    if (!mounted) return;
+    final id = RiderState.instance.activeOrderId;
+    // A job just finished (delivered/cancelled) → refresh Recent.
+    if (_lastActiveId != null && id != _lastActiveId) _loadRecent();
+    _lastActiveId = id;
+    setState(() {});
+  }
 
-  // Fleet owners see their active orders per ride (bike). Dummy
-  // assignment by trackId until the backend sends each order's ride.
-  static const Map<String, int> _fleetRideOf = {
-    'BN-TRK-2402-6D4M8T': 1, // Picked-up
-    'BN-TRK-2402-4L8X1B': 1, // Arrived
-    'BN-TRK-2402-8F7K3Q': 2, // Heading to Pickup
-    'BN-TRK-2402-1R5N9Z': 2, // Picked-up
-    'BN-TRK-2402-9K2W7H': 3, // In Transit
-    'BN-TRK-2402-3P9L2R': 4, // At Pickup
-    'BN-TRK-2402-7T3Y4C': 5, // Heading to Pickup
-    // Recent orders.
-    'BN-TRK-2401-7A2K1M': 1,
-    'BN-TRK-2401-5C9H2D': 1,
-    'BN-TRK-2401-2F6Q8V': 1,
-    'BN-TRK-2401-8M3T5K': 2,
-    'BN-TRK-2401-4W7N1P': 2,
-    'BN-TRK-2401-9B4E6J': 2,
-    'BN-TRK-2401-6R2Y9L': 3,
-    'BN-TRK-2401-3H8U4S': 3,
-    'BN-TRK-2401-1K5Z7G': 3,
-    'BN-TRK-2401-7P3A2X': 4,
-    'BN-TRK-2401-5D1F8M': 5,
-  };
+  // Fleet support isn't on the backend yet: everything belongs to ride 1.
   int _selectedRide = 1;
 
   static const int _collapsedActiveCount = 3;
@@ -304,10 +93,10 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Normalise the sample data to the shared phase table so labels,
-    // colours and progress match what the CTAs move between.
-    _activeOrders = _initialActiveOrders.map(_applyPhase).toList();
-    _recentOrders = List<_RecentOrder>.from(_initialRecentOrders);
+    _lastActiveId = RiderState.instance.activeOrderId;
+    RiderState.instance.addListener(_onRiderState);
+    RiderState.instance.refresh();
+    _loadRecent();
     // Rebuild on every keystroke so the clear (x) button shows/hides and
     // the lists re-filter live, matching the app-side search treatment.
     _searchController.addListener(() => setState(() {}));
@@ -367,7 +156,7 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
   bool _inSelectedRide(String trackId) =>
       !RiderSession.isFleetOwner ||
       _isSearching ||
-      _fleetRideOf[trackId] == _selectedRide;
+      _selectedRide == 1;
 
   List<DeliveryModel> get _filteredActiveOrders => _activeOrders
       .where((d) => _matchesQuery(d) && _inSelectedRide(d.trackId))
@@ -419,78 +208,36 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
     return filtered.take(_collapsedRecentCount).toList();
   }
 
-  // NEW: drives the Picked-up -> In Transit -> Delivered flow.
-  // Confirm Pickup (Heading to Pickup / At Pickup) is left as-is for now
-  // since that flow wasn't specified — only the In-Transit/Delivered
-  // transition is wired up here.
-  //
-  // NOTE: this calls `delivery.copyWith(...)`. If DeliveryModel doesn't
-  // already have a copyWith method, add one — see the snippet in my
-  // reply below.
-  static DeliveryModel _applyPhase(DeliveryModel d, [OrderPhase? phase]) {
-    final p = phase ?? OrderPhase.of(d.status);
-    if (p == null) return d;
-    return d.copyWith(
-      status: p.status,
-      statusColor: p.color,
-      progress: p.progress,
-      progressLabel: p.progressLabel,
-      actionLabel: p.actionLabel,
-      actionColor: p.color,
-      isCompleted: p.isFinal,
-    );
+  // Primary CTA: move the order one step along on the server
+  // (pickup code → in transit → arrived → delivery code).
+  Future<void> _handleCardAction(DeliveryModel delivery) async {
+    final order = _ordersByTrack[delivery.trackId] ?? RiderState.instance.activeOrder;
+    if (order == null) return;
+    final updated = await OrderActions.advance(context, order);
+    if (updated != null && !OrderView.isActive(updated['status'] as String? ?? '')) _loadRecent();
   }
 
-  // Primary CTA: move the order one phase along
-  // (Heading to Pickup → At Pickup → Picked-up → In Transit → Delivered).
-  // Delivered orders leave Active and go to the top of Recent.
-  void _handleCardAction(DeliveryModel delivery) {
-    final index = _activeOrders.indexWhere(
-      (d) => d.trackId == delivery.trackId,
-    );
-    if (index == -1) return;
-    final current = _activeOrders[index];
-    final next = OrderPhase.nextAfter(current.status);
-    if (next == null) return;
-
-    // TODO: tell the API about the status change once it exists.
-    setState(() {
-      final updated = _applyPhase(current, next);
-      if (next.isFinal) {
-        _activeOrders.removeAt(index);
-        _recentOrders.insert(
-          0,
-          _RecentOrder.delivered(updated.copyWith(eta: 'Delivered just now')),
-        );
-      } else {
-        _activeOrders[index] = updated;
-      }
-    });
-  }
-
-  void _toggleOnlineStatus() {
+  Future<void> _toggleOnlineStatus() async {
+    final rs = RiderState.instance;
+    if (rs.busy) return;
     // Rider can't go offline while there are active (in-progress) orders —
     // going online is always allowed, only the offline switch is guarded.
     if (_isOnline && _activeOrders.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "You can't go offline while you have active orders. "
-            "Complete or hand them off first.",
-            style: TextStyle(fontFamily: 'Montserrat'),
-          ),
-          backgroundColor: Color(0xFFD32F2F),
-        ),
-      );
+      showSnack(context, "You can't go offline while you have an active order. Complete it first.", error: true);
       return;
     }
-    setState(() {
-      _isOnline = !_isOnline;
-    });
+    final err = _isOnline ? await rs.goOffline() : await rs.goOnline();
+    if (!mounted) return;
+    if (err != null) {
+      showSnack(context, err, error: true);
+    } else {
+      _checkLocationAccess();
+    }
   }
 
   @override
   void dispose() {
+    RiderState.instance.removeListener(_onRiderState);
     WidgetsBinding.instance.removeObserver(this);
     _serviceStatusSub?.cancel();
     _searchController.dispose();
@@ -534,7 +281,7 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
                           Row(
                             children: [
                               Text(
-                                'Hello Dayo ',
+                                'Hello ${Session.instance.firstName} ',
                                 style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 20,
@@ -1001,7 +748,7 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
               items: delivered.items,
               statusLabel: 'Delivered',
               trackId: delivered.trackId,
-              timeline: _sampleTimeline,
+              timeline: recent.raw == null ? const [] : OrderView.timeline(recent.raw!),
             ),
           ),
         ),
@@ -1159,10 +906,11 @@ class _HomeContentState extends State<HomeContent> with WidgetsBindingObserver {
 class _RecentOrder {
   final DeliveryModel? delivered;
   final ActivityOrder? cancelled;
+  final Map<String, dynamic>? raw;
 
-  const _RecentOrder.delivered(DeliveryModel this.delivered)
+  const _RecentOrder.delivered(DeliveryModel this.delivered, {this.raw})
     : cancelled = null;
-  const _RecentOrder.cancelled(ActivityOrder this.cancelled)
+  const _RecentOrder.cancelled(ActivityOrder this.cancelled, {this.raw})
     : delivered = null;
 
   String get orderId => delivered?.orderId ?? cancelled!.orderId;

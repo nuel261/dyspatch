@@ -1,3 +1,4 @@
+import 'package:dyspatch_rider/core/services/order_actions.dart';
 import 'package:dyspatch_rider/Features/Home/Screen/Track/track_screen.dart';
 import 'package:dyspatch_rider/Features/Home/model/delivery_model.dart';
 import 'package:dyspatch_rider/Features/Home/model/order_phase.dart';
@@ -271,6 +272,7 @@ class _DeliveryCardState extends State<DeliveryCard> {
                           const SizedBox(height: 16),
                           _ActionRow(
                             orderId: delivery.orderId,
+                            trackId: delivery.trackId,
                             label: 'View Route',
                             color: color,
                             tint:
@@ -327,6 +329,7 @@ class _DeliveryCardState extends State<DeliveryCard> {
                           const SizedBox(height: 16),
                           _ActionRow(
                             orderId: delivery.orderId,
+                            trackId: delivery.trackId,
                             label: phase?.mapActionLabel ?? 'Navigate',
                             color: color,
                             tint:
@@ -364,12 +367,14 @@ class _DeliveryCardState extends State<DeliveryCard> {
 // report icons, shown under the CTA when the card is expanded.
 class _ActionRow extends StatelessWidget {
   final String orderId;
+  final String trackId;
   final String label;
   final Color color;
   final Color tint;
 
   const _ActionRow({
     required this.orderId,
+    required this.trackId,
     required this.label,
     required this.color,
     required this.tint,
@@ -379,12 +384,16 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconColor = Theme.of(context).colorScheme.inversePrimary;
 
-    // TODO: wire call, chat and report once contact details come from the API.
-    Widget svgIcon(String path) => SvgPicture.asset(
-      path,
-      width: 22,
-      height: 22,
-      colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+    final order = OrderActions.byTrack(trackId);
+    Widget svgIcon(String path, VoidCallback onTap) => InkResponse(
+      onTap: onTap,
+      radius: 22,
+      child: SvgPicture.asset(
+        path,
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+      ),
     );
 
     return Row(
@@ -398,7 +407,7 @@ class _ActionRow extends StatelessWidget {
               // Opens the map already tracking this order.
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => TrackScreen(initialOrderId: orderId),
+                  builder: (_) => TrackScreen(initialOrderId: trackId),
                 ),
               ),
               child: Padding(
@@ -430,15 +439,19 @@ class _ActionRow extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        svgIcon('assets/images/ph_phone-call.svg'),
+        svgIcon('assets/images/ph_phone-call.svg', () => OrderActions.call(context, order)),
         const SizedBox(width: 16),
-        svgIcon('assets/images/ph_chat-circle-dots.svg'),
+        svgIcon('assets/images/ph_chat-circle-dots.svg', () => OrderActions.message(context, order)),
         const SizedBox(width: 16),
-        SvgPicture.asset(
-          'assets/images/ph_warning.svg',
-          width: 22,
-          height: 22,
-          colorFilter: const ColorFilter.mode(Color(0xFFD32F2F), BlendMode.srcIn),
+        InkResponse(
+          onTap: () => OrderActions.reportIssue(context, order),
+          radius: 22,
+          child: SvgPicture.asset(
+            'assets/images/ph_warning.svg',
+            width: 22,
+            height: 22,
+            colorFilter: const ColorFilter.mode(Color(0xFFD32F2F), BlendMode.srcIn),
+          ),
         ),
       ],
     );

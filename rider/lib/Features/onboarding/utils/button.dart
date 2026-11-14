@@ -8,6 +8,8 @@ class Button extends StatelessWidget {
   // behavior (white on the primary green, green otherwise) so every
   // existing call site keeps working unchanged.
   final Color? textColor;
+  // Shows a small spinner instead of the label and ignores taps.
+  final bool loading;
 
   const Button({
     super.key,
@@ -15,12 +17,13 @@ class Button extends StatelessWidget {
     required this.color,
     this.onTap,
     this.textColor,
+    this.loading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       child: Container(
         decoration: BoxDecoration(
           color: color,
@@ -29,7 +32,16 @@ class Button extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: Center(
-          child: Text(
+          child: loading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: textColor ?? Colors.white,
+                  ),
+                )
+              : Text(
             button_text,
             style: TextStyle(
               fontFamily: "Montserrat",

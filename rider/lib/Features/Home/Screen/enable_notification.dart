@@ -1,4 +1,6 @@
 import 'package:dyspatch_rider/Features/Home/Screen/home_screen.dart';
+import 'package:dyspatch_rider/core/services/app_router.dart';
+import 'package:dyspatch_rider/core/services/push_service.dart';
 import 'package:dyspatch_rider/core/utils/button_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -29,24 +31,17 @@ class EnableNotification extends StatelessWidget {
         (permission == LocationPermission.always ||
             permission == LocationPermission.whileInUse);
 
+    // Job offers ring as notifications, so ask for that too.
+    await PushService.instance.requestPermissionAndRegister();
+
     if (!context.mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(locationEnabled: granted),
-      ),
-    );
+    AppRouter.goTo(context, HomeScreen(locationEnabled: granted));
   }
 
   // User skipped — go to Home, but location is definitely not confirmed,
   // so the banner should show there.
   void _maybeLater(BuildContext context) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(locationEnabled: false),
-      ),
-    );
+    AppRouter.goTo(context, HomeScreen(locationEnabled: false));
   }
 
   @override
