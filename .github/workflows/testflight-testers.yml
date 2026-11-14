@@ -1,0 +1,39 @@
+# Adds everyone who has accepted their App Store Connect invite to the
+# internal "Dyspatch Team" TestFlight group of both apps. Run it from
+# Actions → "TestFlight → add accepted testers" → Run workflow, any time
+# someone new accepts. Uses the same ASC_KEY_P8 secret as the iOS build.
+name: TestFlight → add accepted testers
+
+on:
+  workflow_dispatch:
+    inputs:
+      only_emails:
+        description: "Optional: comma-separated emails to add (blank = everyone who accepted)"
+        required: false
+        default: ""
+
+env:
+  ASC_ISSUER_ID: 6bfe8df6-d99c-4174-a6d3-86341be7a053
+  ASC_KEY_ID: 45Z85C3C7R
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: API key
+        env:
+          P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          if printf '%s' "$P8" | grep -q "BEGIN PRIVATE KEY"; then
+            printf '%s\n' "$P8" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          else
+            printf '%s' "$P8" | base64 -d > "$RUNNER_TEMP/asc/AuthKey.p8"
+          fi
+      - name: Add testers
+        env:
+          ONLY_EMAILS: ${{ inputs.only_emails }}
+        run: |
+          pip install -q pyjwt cryptography
+          python3 .github/scripts/add_testflight_testers.py "$RUNNER_TEMP/asc/AuthKey.p8"
