@@ -1,65 +1,28 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
+import 'package:dyspatch_rider/Features/onboarding/screen/splash_screen.dart';
+import 'package:dyspatch_rider/core/theme/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'core/api/api_client.dart';
-import 'core/api/session.dart';
-import 'core/services/push_service.dart';
-import 'core/services/rider_state.dart';
-import 'core/ui/theme.dart';
-import 'screens/onboarding/splash_screen.dart';
-import 'screens/onboarding/welcome_screen.dart';
-
-final navigatorKey = GlobalKey<NavigatorState>();
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterError.onError = (d) => FlutterError.presentError(d);
-  PlatformDispatcher.instance.onError = (e, s) {
-    debugPrint('Uncaught: $e\n$s');
-    return true;
-  };
-  // Never let startup work keep the first screen from appearing.
-  try {
-    await Session.instance.load().timeout(const Duration(seconds: 5));
-  } catch (e) {
-    debugPrint('Session load failed: $e');
-  }
-  try {
-    await PushService.instance.init().timeout(const Duration(seconds: 8));
-  } catch (e) {
-    debugPrint('Push init skipped: $e');
-  }
-
-  // Token expired / revoked anywhere → back to the welcome screen.
-  ApiClient.instance.onUnauthorized = () {
-    RiderState.instance.stop();
-    navigatorKey.currentState?.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const WelcomeScreen()), (_) => false);
-  };
-
-  runApp(MultiProvider(
-    providers: [
-      ChangeNotifierProvider(create: (_) => ThemeProvider()),
-      ChangeNotifierProvider.value(value: Session.instance),
-      ChangeNotifierProvider.value(value: RiderState.instance),
-    ],
-    child: const RiderApp(),
-  ));
+void main() {
+  runApp(
+    MultiProvider(
+      providers: [ChangeNotifierProvider(create: (context) => ThemeProvider())],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class RiderApp extends StatelessWidget {
-  const RiderApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
+  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Dyspatch Rider',
-      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: context.watch<ThemeProvider>().themeData,
       home: const SplashScreen(),
+      theme: Provider.of<ThemeProvider>(context).themeData,
     );
   }
 }
