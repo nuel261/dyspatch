@@ -108,8 +108,11 @@ if ONLY:
             gid = GROUPS[label]
             builds = get_all(f"/betaGroups/{gid}/builds?limit=5")
             print(f"    {label}: group has {len(builds)} build(s)")
-            if bt:
+            for t in bt:
                 st, js = call("POST", "/betaTesterInvitations", {"data": {"type": "betaTesterInvitations", "relationships": {
                     "app": {"data": {"type": "apps", "id": app_id}},
-                    "betaTester": {"data": {"type": "betaTesters", "id": bt[0]["id"]}}}}})
-                print(f"    resent {label} invite: {st} {'' if st in (200, 201) else json.dumps(js)[:300]}")
+                    "betaTester": {"data": {"type": "betaTesters", "id": t["id"]}}}}})
+                code = (js.get("errors") or [{}])[0].get("code", "")
+                print(f"    {label} invite via tester {t['id'][:8]}: {st} {code}")
+                if st in (200, 201) or "ALREADY_ACCEPTED" in code:
+                    break
