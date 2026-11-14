@@ -83,3 +83,33 @@ for label, gid in GROUPS.items():
             print(f"  + {email} added (existing tester)" if st2 in (200, 204) else f"  ! {email} failed {st2}: {js2}")
         else:
             print(f"  ! {email} failed {st}: {json.dumps(js)[:400]}")
+
+
+# ---- Check access + resend TestFlight invites for the selected people ----
+APPS = {"Dyspatch (customer)": "6834452009", "Dyspatch Rider": "6834452261"}
+if ONLY:
+    print("\nAccess check / resend:")
+    for u in users:
+        email = (u["attributes"].get("username") or "").lower()
+        if email not in ONLY:
+            continue
+        a = u["attributes"]
+        vis = [x["id"] for x in get_all(f"/users/{u['id']}/visibleApps?limit=50")] if not a.get("allAppsVisible") else ["ALL"]
+        print(f"  {email}: roles={a.get('roles')} visibleApps={vis}")
+        missing = [i for i in APPS.values() if vis != ["ALL"] and i not in vis]
+        if missing:
+            st, js = call("POST", f"/users/{u['id']}/relationships/visibleApps",
+                          {"data": [{"type": "apps", "id": i} for i in missing]})
+            print(f"    gave access to apps {missing}: {st}")
+        bt = get_all(f"/betaTesters?filter[email]={urllib.parse.quote(email)}&limit=5")
+        for t in bt:
+            print(f"    tester state={t['attributes'].get('state')} inviteType={t['attributes'].get('inviteType')}")
+        for label, app_id in APPS.items():
+            gid = GROUPS[label]
+            builds = get_all(f"/betaGroups/{gid}/builds?limit=5")
+            print(f"    {label}: group has {len(builds)} build(s)")
+            if bt:
+                st, js = call("POST", "/betaTesterInvitations", {"data": {"type": "betaTesterInvitations", "relationships": {
+                    "app": {"data": {"type": "apps", "id": app_id}},
+                    "betaTester": {"data": {"type": "betaTesters", "id": bt[0]["id"]}}}}})
+                print(f"    resent {label} invite: {st} {'' if st in (200, 201) else json.dumps(js)[:300]}")
