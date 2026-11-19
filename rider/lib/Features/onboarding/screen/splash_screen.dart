@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 450),
     );
 
     _fadeAnim = CurvedAnimation(
@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen>
       curve: const Interval(0.0, 0.7, curve: Curves.easeIn),
     );
 
-    _scaleAnim = Tween<double>(begin: 0.78, end: 1.0).animate(
+    _scaleAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 0.85, curve: Curves.easeOutCubic),
@@ -40,9 +40,8 @@ class _SplashScreenState extends State<SplashScreen>
     // the logo animates, so the hand-off is instant.
     final next = AppRouter.startScreen();
     _controller.forward().then((_) async {
-      await Future.delayed(const Duration(milliseconds: 500));
       final screen = await next;
-      await _controller.reverse();
+      if (!mounted) return;
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -68,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: ScaleTransition(
             scale: _scaleAnim,
             child: SvgPicture.asset(
-              'assets/images/Logo_Rider.svg',
+              Theme.of(context).brightness == Brightness.dark ? 'assets/images/Logo_Rider_dark.svg' : 'assets/images/Logo_Rider.svg',
               width: 60,
               height: 60,
             ),

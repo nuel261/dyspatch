@@ -20,17 +20,14 @@ Future<void> main() async {
     debugPrint('Uncaught: $e\n$s');
     return true;
   };
-  // Never let startup work keep the first screen from appearing.
-  try {
-    await Session.instance.load().timeout(const Duration(seconds: 5));
-  } catch (e) {
-    debugPrint('Session load failed: $e');
-  }
-  try {
-    await PushService.instance.init().timeout(const Duration(seconds: 8));
-  } catch (e) {
-    debugPrint('Push init skipped: $e');
-  }
+  // Only fast, local reads before the first frame: the saved sign-in and the
+  // saved theme (both from SharedPreferences). Network, Firebase and location
+  // start after the first frame so the logo shows immediately.
+  var theme = ThemeProvider();
+  await Future.wait([
+    Session.instance.load().catchError((e) => debugPrint('Session load failed: $e')),
+    ThemeProvider.load().then((t) => theme = t),
+  ]).timeout(const Duration(seconds: 3), onTimeout: () => const []);
 
   // Token expired or revoked anywhere → back to the start.
   ApiClient.instance.onUnauthorized = () {
@@ -45,13 +42,16 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: theme),
         ChangeNotifierProvider.value(value: Session.instance),
         ChangeNotifierProvider.value(value: RiderState.instance),
       ],
       child: const MyApp(),
     ),
   );
+
+  // Firebase / notification setup off the startup path.
+  WidgetsBinding.instance.addPostFrameCallback((_) => PushService.instance.init());
 }
 
 class MyApp extends StatelessWidget {
@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
-      theme: Provider.of<ThemeProvider>(context).themeData,
+      theme: context.watch<ThemeProvider>().themeData,
     );
   }
 }

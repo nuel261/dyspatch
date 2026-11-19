@@ -207,9 +207,9 @@ layout_start($o['track_id'], 'orders', e($o['order_no']) . ' · ' . e($zone['nam
       <div class="card-h"><h3>Details</h3><?php if (!$done): ?><button class="btn ghost sm" data-open="dlgRecipient">Edit recipient</button><?php endif; ?></div>
       <div class="card-b stack" style="gap:16px">
         <div>
-          <div class="addr"><span class="pin a"></span><div><div class="small muted">Pickup<?= $o['sender_name'] ? ' · ' . e($o['sender_name']) : '' ?></div><div class="strong"><?= e($o['pickup_address']) ?></div><?php if ($o['sender_phone']): ?><div class="small muted"><?= e($o['sender_phone']) ?></div><?php endif; ?></div></div>
+          <div class="addr"><span class="pin a"></span><div><div class="small muted">Pickup<?= $o['sender_name'] ? ' · ' . e($o['sender_name']) : '' ?></div><div class="strong"><?= e($o['pickup_address']) ?></div><?php if (!empty($o['pickup_note'])): ?><div class="small">📍 <?= e($o['pickup_note']) ?></div><?php endif; ?><?php if ($o['sender_phone']): ?><div class="small muted"><?= e($o['sender_phone']) ?></div><?php endif; ?></div></div>
           <div class="addr"><span class="line"></span></div>
-          <div class="addr"><span class="pin b"></span><div><div class="small muted">Drop-off · <?= e($o['recipient_name']) ?></div><div class="strong"><?= e($o['dropoff_address']) ?></div><div class="small muted"><?= e($o['recipient_phone']) ?></div></div></div>
+          <div class="addr"><span class="pin b"></span><div><div class="small muted">Drop-off · <?= e($o['recipient_name']) ?></div><div class="strong"><?= e($o['dropoff_address']) ?></div><?php if (!empty($o['dropoff_note'])): ?><div class="small">📍 <?= e($o['dropoff_note']) ?></div><?php endif; ?><div class="small muted"><?= e($o['recipient_phone']) ?></div></div></div>
         </div>
         <div class="divider"></div>
         <dl class="kv">

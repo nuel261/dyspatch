@@ -73,14 +73,30 @@ class _HomeScreenState extends State<HomeScreen> {
     RiderState.instance.addListener(_onRiderState);
     _pages = [
       HomeContent(onFindNewOrders: () => setState(() => _selectedIndex = 2)),
-      const EarningScreen(),
-      ActivityScreen(onGoHome: () => setState(() => _selectedIndex = 0)),
-      const ProfileScreen(),
+      EarningScreen(onBack: _goHomeTab),
+      ActivityScreen(onGoHome: _goHomeTab),
+      ProfileScreen(onBack: _goHomeTab),
     ];
+  }
+
+  void _goHomeTab() {
+    if (mounted && _selectedIndex != 0) setState(() => _selectedIndex = 0);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Android back button: from Wallet / Activity / Settings go to the Home
+    // tab first; only Home itself leaves the app.
+    return PopScope(
+      canPop: _selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goHomeTab();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       extendBody: true,
       backgroundColor: Theme.of(context).colorScheme.primary,

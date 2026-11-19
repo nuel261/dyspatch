@@ -7,6 +7,8 @@ import 'package:dyspatch_app/core/api/session.dart';
 import 'package:dyspatch_app/core/utils/format.dart';
 import 'package:flutter/material.dart';
 import 'package:dyspatch_app/core/services/location_service.dart';
+import 'package:dyspatch_app/core/services/places.dart';
+import 'package:dyspatch_app/Features/Home/Screen/pin_picker_screen.dart';
 
 // ── Shared form state across all steps ──
 class _DeliveryFormData {
@@ -16,6 +18,8 @@ class _DeliveryFormData {
   String dropoff = '';
   double? dropoffLat;
   double? dropoffLng;
+  String pickupNote = '';
+  String dropoffNote = '';
   String packageType = 'Medium Package';
   String packageDescription = '';
   String recipientName = '';
@@ -26,6 +30,7 @@ class _DeliveryFormData {
   Map<String, dynamic> toJson() => {
         'pickup_address': pickup, 'pickup_lat': pickupLat, 'pickup_lng': pickupLng,
         'dropoff_address': dropoff, 'dropoff_lat': dropoffLat, 'dropoff_lng': dropoffLng,
+        'pickup_note': pickupNote.trim(), 'dropoff_note': dropoffNote.trim(),
         'package_type': packageType, 'package_description': packageDescription,
         'recipient_name': recipientName, 'recipient_phone': recipientPhone,
         'delivery_type': deliveryType, 'payment_method': paymentMethod,
@@ -142,6 +147,8 @@ class _FromToStepState extends State<_FromToStep> {
   List<Map<String, dynamic>> _results = [];
   double? _biasLat;
   double? _biasLng;
+  final _session = PlaceSession();
+  int _seq = 0;
 
   @override
   void initState() {
@@ -178,23 +185,45 @@ class _FromToStepState extends State<_FromToStep> {
       setState(() => _results = []);
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      final seq = ++_seq;
       setState(() { _searching = true; _error = null; });
       try {
-        final r = await DyspatchApi.searchPlaces(q, lat: _biasLat, lng: _biasLng);
-        if (mounted) setState(() => _results = r);
+        final r = await _session.suggest(q);
+        if (mounted && seq == _seq) setState(() => _results = r);
       } catch (e) {
-        if (mounted) setState(() => _error = e.toString());
+        if (mounted && seq == _seq) setState(() => _error = e.toString());
       } finally {
-        if (mounted) setState(() => _searching = false);
+        if (mounted && seq == _seq) setState(() => _searching = false);
       }
     });
   }
 
+  Future<void> _choose(Map<String, dynamic> suggestion) async {
+    setState(() { _searching = true; _error = null; });
+    try {
+      final place = await _session.resolve(suggestion);
+      if (mounted) _pick(place);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _dropPin() async {
+    final f = widget.formData;
+    final lat = _editingFrom ? (f.pickupLat ?? _biasLat) : (f.dropoffLat ?? f.pickupLat ?? _biasLat);
+    final lng = _editingFrom ? (f.pickupLng ?? _biasLng) : (f.dropoffLng ?? f.pickupLng ?? _biasLng);
+    final place = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => PinPickerScreen(title: _editingFrom ? 'Pickup pin' : 'Drop-off pin', lat: lat, lng: lng)),
+    );
+    if (place != null && mounted) _pick(place);
+  }
+
   void _pick(Map<String, dynamic> place) {
-    final name = (place['name'] ?? '') as String;
-    final addr = (place['address'] ?? '') as String;
-    final label = addr.isNotEmpty && addr != name ? '$name, $addr' : name;
+    final label = placeLabel(place);
     final lat = (place['lat'] as num).toDouble();
     final lng = (place['lng'] as num).toDouble();
     final f = widget.formData;
@@ -281,7 +310,7 @@ class _FromToStepState extends State<_FromToStep> {
           ),
           if (controller.text.isNotEmpty)
             GestureDetector(
-              onTap: () => setState(() { controller.clear(); _results = []; }),
+              onTap: () => setState(() { controller.clear(); _results = []; _session.renew(); }),
               child: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
             ),
         ],
@@ -311,15 +340,29 @@ class _FromToStepState extends State<_FromToStep> {
             isDot: true,
           ),
           const SizedBox(height: 12),
-          if (_editingFrom)
+          Wrap(spacing: 4, children: [
+            if (_editingFrom)
+              TextButton.icon(
+                onPressed: _searching ? null : _useMyLocation,
+                icon: const Icon(Icons.my_location, size: 18, color: Color(0xFF298341)),
+                label: const Text('Use my location', style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF298341), fontWeight: FontWeight.w600)),
+              ),
             TextButton.icon(
-              onPressed: _searching ? null : _useMyLocation,
-              icon: const Icon(Icons.my_location, size: 18, color: Color(0xFF298341)),
-              label: const Text('Use my current location', style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF298341), fontWeight: FontWeight.w600)),
+              onPressed: _searching ? null : _dropPin,
+              icon: const Icon(Icons.push_pin_outlined, size: 18, color: Color(0xFF298341)),
+              label: Text(_editingFrom ? 'Drop a pin for pickup' : 'Drop a pin for drop-off',
+                  style: const TextStyle(fontFamily: 'Montserrat', color: Color(0xFF298341), fontWeight: FontWeight.w600)),
             ),
+          ]),
           if (_searching) const LinearProgressIndicator(color: Color(0xFF298341), minHeight: 2),
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12))),
           const SizedBox(height: 8),
+          if (!_searching && _results.isEmpty && (_editingFrom ? _fromController : _toController).text.trim().length >= 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text("Can't find it? Drop a pin, then add a landmark on the next step.",
+                  style: TextStyle(fontFamily: 'Montserrat', fontSize: 12, color: Colors.grey.shade600)),
+            ),
           Expanded(
             child: ListView(
               children: _results.map((p) {
@@ -347,7 +390,7 @@ class _FromToStepState extends State<_FromToStep> {
                       color: Colors.grey,
                     ),
                   ),
-                  onTap: () => _pick(p),
+                  onTap: _searching ? null : () => _choose(p),
                 );
               }).toList(),
             ),
@@ -358,15 +401,30 @@ class _FromToStepState extends State<_FromToStep> {
   }
 }
 
-// ── Step 2: Address confirmation (auto-advances via step 1 tap; kept as a
-// standalone step in case you want a manual "confirm addresses" screen) ──
-class _AddressSuggestionsStep extends StatelessWidget {
+// ── Step 2: Confirm addresses + landmark / directions for the rider ──
+class _AddressSuggestionsStep extends StatefulWidget {
   final _DeliveryFormData formData;
   final VoidCallback onNext;
   const _AddressSuggestionsStep({required this.formData, required this.onNext});
 
   @override
+  State<_AddressSuggestionsStep> createState() => _AddressSuggestionsStepState();
+}
+
+class _AddressSuggestionsStepState extends State<_AddressSuggestionsStep> {
+  late final _pickupNote = TextEditingController(text: widget.formData.pickupNote);
+  late final _dropoffNote = TextEditingController(text: widget.formData.dropoffNote);
+
+  @override
+  void dispose() {
+    _pickupNote.dispose();
+    _dropoffNote.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final f = widget.formData;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -382,19 +440,62 @@ class _AddressSuggestionsStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _addressTile(context, 'Pickup', formData.pickup),
-          const SizedBox(height: 12),
-          _addressTile(context, 'Dropoff', formData.dropoff),
-          const Spacer(),
-          _ContinueButton(label: 'Continue', onPressed: onNext),
+          Expanded(
+            child: ListView(children: [
+              _addressTile(context, 'Pickup', f.pickup),
+              const SizedBox(height: 8),
+              _noteField(context, _pickupNote, 'Pickup landmark / directions (optional)', 'e.g. Blue gate opposite First Bank, ask for Mama Ada',
+                  (v) => f.pickupNote = v),
+              const SizedBox(height: 16),
+              _addressTile(context, 'Dropoff', f.dropoff),
+              const SizedBox(height: 8),
+              _noteField(context, _dropoffNote, 'Drop-off landmark / directions (optional)', 'e.g. Behind Total filling station, 2nd floor',
+                  (v) => f.dropoffNote = v),
+              const SizedBox(height: 8),
+              Text('The rider sees these notes with the address.',
+                  style: TextStyle(fontFamily: 'Montserrat', fontSize: 12, color: Colors.grey.shade600)),
+            ]),
+          ),
+          _ContinueButton(
+            label: 'Continue',
+            onPressed: () {
+              FocusScope.of(context).unfocus();
+              widget.onNext();
+            },
+          ),
           const SizedBox(height: 16),
         ],
       ),
     );
   }
 
+  Widget _noteField(BuildContext context, TextEditingController c, String label, String hint, ValueChanged<String> onChanged) {
+    final cs = Theme.of(context).colorScheme;
+    return TextField(
+      controller: c,
+      maxLength: 255,
+      maxLines: 2,
+      minLines: 1,
+      textCapitalization: TextCapitalization.sentences,
+      onChanged: onChanged,
+      style: TextStyle(fontFamily: 'Montserrat', fontSize: 14, color: cs.inversePrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        counterText: '',
+        prefixIcon: const Icon(Icons.signpost_outlined, size: 20, color: Color(0xFF298341)),
+        labelStyle: TextStyle(fontFamily: 'Montserrat', fontSize: 13, color: Colors.grey.shade600),
+        hintStyle: TextStyle(fontFamily: 'Montserrat', fontSize: 13, color: Colors.grey.shade500),
+        filled: true,
+        fillColor: cs.secondary,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      ),
+    );
+  }
+
   Widget _addressTile(BuildContext context, String label, String value) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondary,

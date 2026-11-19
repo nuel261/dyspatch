@@ -52,6 +52,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
 
 dev_dependencies:
+  flutter_native_splash: ^2.4.4
   flutter_test:
     sdk: flutter
 
@@ -164,3 +165,19 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+# Native launch screen (shown by Android/iOS before Flutter starts, so the logo
+# appears instantly). Regenerate after changing: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/splash/splash_light.png
+  color_dark: "#0E120F"
+  image_dark: assets/splash/splash_dark.png
+  android_12:
+    color: "#FFFFFF"
+    image: assets/splash/android12_light.png
+    color_dark: "#0E120F"
+    image_dark: assets/splash/android12_dark.png
+  ios_content_mode: center
+  web: false
+  fullscreen: false

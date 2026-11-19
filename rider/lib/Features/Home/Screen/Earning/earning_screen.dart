@@ -12,7 +12,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class EarningScreen extends StatefulWidget {
-  const EarningScreen({super.key});
+  /// Set when shown as a Home tab: back goes to the Home tab.
+  final VoidCallback? onBack;
+  const EarningScreen({super.key, this.onBack});
 
   @override
   State<EarningScreen> createState() => _EarningScreenState();
@@ -128,7 +130,7 @@ class _EarningScreenState extends State<EarningScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.maybePop(context),
+                    onTap: () => widget.onBack != null ? widget.onBack!() : Navigator.maybePop(context),
                     child: Container(
                       decoration: BoxDecoration(
                         color: cs.tertiaryContainer,

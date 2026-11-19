@@ -57,6 +57,12 @@ class DyspatchApi {
   // ── Places ──
   static Future<List<Map<String, dynamic>>> searchPlaces(String q, {double? lat, double? lng}) async =>
       List<Map<String, dynamic>>.from(await _c.get('/places/search', query: {'q': q, 'lat': lat, 'lng': lng}));
+  /// Google Places Autocomplete via the backend (NG only, biased to Benin City).
+  static Future<List<Map<String, dynamic>>> autocompletePlaces(String q, String session) async =>
+      List<Map<String, dynamic>>.from(await _c.get('/places/autocomplete', query: {'q': q, 'session': session}));
+  /// Place Details for a picked suggestion — returns lat/lng; ends the billing session.
+  static Future<Map<String, dynamic>> placeDetails(String placeId, String session) async =>
+      Map<String, dynamic>.from(await _c.get('/places/details', query: {'place_id': placeId, 'session': session}));
   static Future<Map<String, dynamic>> reverse(double lat, double lng) async =>
       Map<String, dynamic>.from(await _c.get('/places/reverse', query: {'lat': lat, 'lng': lng}));
 

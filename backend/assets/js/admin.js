@@ -40,7 +40,9 @@
     Object.assign(box.style, { position: 'absolute', zIndex: 50, left: 0, right: 0, top: '100%', marginTop: '4px', display: 'none', maxHeight: '260px', overflowY: 'auto', padding: '6px' });
     inp.parentElement.style.position = 'relative';
     inp.parentElement.appendChild(box);
-    let tmr;
+    let tmr, session = null;
+    const newSession = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^A-Za-z0-9-]/g, '');
+    const alertBox = (m) => { box.innerHTML = '<div class="muted small" style="padding:10px">' + esc(m) + '</div>'; box.style.display = 'block'; };
     inp.addEventListener('input', () => {
       if (lat) lat.value = ''; if (lng) lng.value = '';
       clearTimeout(tmr);
@@ -48,7 +50,8 @@
       if (q.length < 3) { box.style.display = 'none'; return; }
       tmr = setTimeout(async () => {
         try {
-          const r = await fetch('../api/places/search?q=' + encodeURIComponent(q)).then((r) => r.json());
+          if (!session) session = newSession();
+          const r = await fetch('../api/places/autocomplete?session=' + session + '&q=' + encodeURIComponent(q)).then((r) => r.json());
           const list = (r.data || []);
           box.innerHTML = list.length ? '' : '<div class="muted small" style="padding:10px">No matches — keep typing or drop a pin on the map.</div>';
           list.forEach((p) => {
@@ -58,12 +61,20 @@
             a.innerHTML = `<b style="font-weight:600">${esc(p.name)}</b><div class="muted small">${esc(p.address)}</div>`;
             a.onmouseenter = () => (a.style.background = 'var(--surface-2)');
             a.onmouseleave = () => (a.style.background = '');
-            a.onclick = (ev) => {
+            a.onclick = async (ev) => {
               ev.preventDefault();
-              inp.value = p.name + (p.address && p.address !== p.name ? ', ' + p.address : '');
-              if (lat) lat.value = p.lat; if (lng) lng.value = p.lng;
               box.style.display = 'none';
-              inp.dispatchEvent(new CustomEvent('geo:set', { detail: p, bubbles: true }));
+              let place = p;
+              if (p.place_id && p.lat == null) {
+                try {
+                  const d = await fetch('../api/places/details?session=' + session + '&place_id=' + encodeURIComponent(p.place_id)).then((r) => r.json());
+                  if (!d.data) throw new Error(d.message || 'No location');
+                  place = { ...p, lat: d.data.lat, lng: d.data.lng };
+                } catch (e) { alertBox(e.message); return; } finally { session = null; }
+              }
+              inp.value = place.name + (place.address && place.address !== place.name ? ', ' + place.address : '');
+              if (lat) lat.value = place.lat; if (lng) lng.value = place.lng;
+              inp.dispatchEvent(new CustomEvent('geo:set', { detail: place, bubbles: true }));
             };
             box.appendChild(a);
           });

@@ -14,10 +14,19 @@ class AppRouter {
   static Future<Widget> startScreen() async {
     final s = Session.instance;
     if (!s.isLoggedIn) return const OnboardingScreen();
-    try {
-      await s.updateRider(await RiderApi.me()).timeout(const Duration(seconds: 6));
-    } catch (_) {/* offline: use the saved profile */}
-    RiderSession.syncFrom(s.rider);
+    if (s.rider != null) {
+      // Open straight away with the saved profile; refresh it in the background.
+      RiderSession.syncFrom(s.rider);
+      RiderApi.me().then((r) async {
+        await s.updateRider(r);
+        RiderSession.syncFrom(s.rider);
+      }).catchError((_) {/* offline: keep the saved profile */});
+    } else {
+      try {
+        await s.updateRider(await RiderApi.me()).timeout(const Duration(seconds: 6));
+      } catch (_) {}
+      RiderSession.syncFrom(s.rider);
+    }
     RiderState.instance.start();
     PushService.instance.syncToken();
     return const HomeScreen();

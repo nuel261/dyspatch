@@ -283,7 +283,10 @@ class _TrackScreenState extends State<TrackScreen>
       orderId: OrderView.orderNo(o),
       status: RideStatus.fromString(status),
       dropoffLocation: LatLng((target['lat'] as num?)?.toDouble() ?? 0, (target['lng'] as num?)?.toDouble() ?? 0),
-      dropoffAddress: (target['address'] as String?) ?? '',
+      dropoffAddress: [
+        (target['address'] as String?) ?? '',
+        if (((target['note'] as String?) ?? '').trim().isNotEmpty) '📍 Landmark: ${(target['note'] as String).trim()}',
+      ].join('\n'),
       etaMinutes: (km * 3).round().clamp(1, 999),
       rider: RiderModel(
         name: _contactName(o),

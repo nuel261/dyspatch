@@ -68,8 +68,10 @@ layout_start('New delivery', 'orders', 'Web dispatch — create a delivery for a
       <div class="card-b stack">
         <label class="f">Pickup address *<div><input class="input" name="pickup_address" data-geo="pickup" value="<?= $v('pickup_address') ?>" placeholder="Start typing… e.g. Ring Road, Benin City" required></div></label>
         <input type="hidden" name="pickup_lat" value="<?= $v('pickup_lat') ?>"><input type="hidden" name="pickup_lng" value="<?= $v('pickup_lng') ?>">
+        <label class="f">Pickup landmark / directions<input class="input" name="pickup_note" maxlength="255" value="<?= $v('pickup_note') ?>" placeholder="e.g. Blue gate opposite First Bank"></label>
         <label class="f">Drop-off address *<div><input class="input" name="dropoff_address" data-geo="dropoff" value="<?= $v('dropoff_address') ?>" placeholder="e.g. University of Benin" required></div></label>
         <input type="hidden" name="dropoff_lat" value="<?= $v('dropoff_lat') ?>"><input type="hidden" name="dropoff_lng" value="<?= $v('dropoff_lng') ?>">
+        <label class="f">Drop-off landmark / directions<input class="input" name="dropoff_note" maxlength="255" value="<?= $v('dropoff_note') ?>" placeholder="e.g. Second floor, call on arrival"></label>
         <div class="form-grid">
           <label class="f">Recipient name *<input class="input" name="recipient_name" value="<?= $v('recipient_name') ?>" required></label>
           <label class="f">Recipient phone *<input class="input" name="recipient_phone" value="<?= $v('recipient_phone') ?>" placeholder="Gets the delivery code by SMS" required></label>

@@ -141,9 +141,11 @@ CREATE TABLE IF NOT EXISTS orders (
   pickup_address VARCHAR(255) NOT NULL,
   pickup_lat DECIMAL(10,7) NULL,
   pickup_lng DECIMAL(10,7) NULL,
+  pickup_note VARCHAR(255) NULL,               -- landmark / directions from the sender
   dropoff_address VARCHAR(255) NOT NULL,
   dropoff_lat DECIMAL(10,7) NULL,
   dropoff_lng DECIMAL(10,7) NULL,
+  dropoff_note VARCHAR(255) NULL,
   recipient_name VARCHAR(120) NOT NULL,
   recipient_phone VARCHAR(20) NOT NULL,
   package_type ENUM('small','medium','large') NOT NULL DEFAULT 'medium',

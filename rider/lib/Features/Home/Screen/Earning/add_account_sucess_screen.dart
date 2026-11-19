@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:dyspatch_rider/Features/Home/Screen/Earning/earning_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -18,9 +17,8 @@ class _AddAccountSuccessScreenState extends State<AddAccountSuccessScreen> {
     // Auto-navigate back to Wallet/Earnings after a short delay
     Timer(const Duration(seconds: 10), () {
       if (mounted) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (context) => EarningScreen()));
+        // Back to the wallet that opened "Add account" (no duplicate wallet page).
+        Navigator.of(context).maybePop(true);
       }
     });
   }

@@ -63,7 +63,10 @@ $groups = [
         ['smile_partner_id', 'Smile partner ID', 'text'], ['smile_api_key', 'Smile API key', 'secret'],
     ]],
     'maps' => ['Maps', 'map', [
-        ['google_maps_key', 'Google Maps API key', 'secret', 'Optional. Enables Google Places search & Distance Matrix; OpenStreetMap is used otherwise.'],
+        ['google_maps_key', 'Google Maps API key', 'secret', 'Enables Google Places Autocomplete + Place Details (enable “Places API (New)”), Geocoding and Distance Matrix on this key. OpenStreetMap is used when empty.'],
+        ['places_bias_lat', 'Address search: bias centre latitude', 'text', 'Suggestions near here rank first. Default Benin City 6.3350.'],
+        ['places_bias_lng', 'Address search: bias centre longitude', 'text', 'Default 5.6037.'],
+        ['places_bias_radius_m', 'Address search: bias radius (metres)', 'int', '1000–50000. Default 30000.'],
     ]],
 ];
 

@@ -64,7 +64,17 @@ class PushService {
   void Function(Map<String, dynamic> data)? onUpdate;
   void Function(Map<String, dynamic> data)? onOpen;
 
-  Future<void> init() async {
+  Future<void>? _initFuture;
+
+  /// Sets up local notifications + Firebase. Runs once (later calls share the
+  /// same future). Started after the first frame, never on the startup path.
+  Future<void> init() => _initFuture ??= _init().timeout(const Duration(seconds: 15), onTimeout: () {
+        debugPrint('Push init timed out');
+      }).catchError((e) {
+        debugPrint('Push init failed: $e');
+      });
+
+  Future<void> _init() async {
     if (kIsWeb) return;
     await _initLocal();
     try {
@@ -126,6 +136,7 @@ class PushService {
   /// Asks for notification permission and registers this phone with the backend.
   Future<bool> requestPermissionAndRegister() async {
     if (kIsWeb) return false;
+    await init();
     var granted = true;
     try {
       final android = _local.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -145,6 +156,7 @@ class PushService {
   }
 
   Future<void> syncToken() async {
+    await init();
     if (!fcmReady || !Session.instance.isLoggedIn) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();

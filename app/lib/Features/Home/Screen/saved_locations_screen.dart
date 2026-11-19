@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:dyspatch_app/core/api/dyspatch_api.dart';
 import 'package:dyspatch_app/core/utils/format.dart';
+import 'package:dyspatch_app/core/services/places.dart';
+import 'package:dyspatch_app/Features/Home/Screen/pin_picker_screen.dart';
 import 'package:flutter/material.dart';
 
 /// Saved places (home, shop, office…) and the default pickup location.
@@ -153,6 +155,25 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
   Timer? _t;
   List<Map<String, dynamic>> _results = [];
   bool _busy = false;
+  final _session = PlaceSession();
+  int _seq = 0;
+
+  Future<void> _choose(Map<String, dynamic> s) async {
+    setState(() => _busy = true);
+    try {
+      final p = await _session.resolve(s);
+      if (mounted) Navigator.pop(context, {...p, 'label': placeLabel(p)});
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pin() async {
+    final p = await Navigator.push<Map<String, dynamic>>(context, MaterialPageRoute(builder: (_) => const PinPickerScreen()));
+    if (p != null && mounted) Navigator.pop(context, {...p, 'label': p['address'] ?? placeLabel(p)});
+  }
 
   @override
   void dispose() {
@@ -163,14 +184,15 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
   void _search(String q) {
     _t?.cancel();
     if (q.trim().length < 3) return;
-    _t = Timer(const Duration(milliseconds: 400), () async {
+    _t = Timer(const Duration(milliseconds: 300), () async {
+      final seq = ++_seq;
       setState(() => _busy = true);
       try {
-        final r = await DyspatchApi.searchPlaces(q);
-        if (mounted) setState(() => _results = r);
+        final r = await _session.suggest(q);
+        if (mounted && seq == _seq) setState(() => _results = r);
       } catch (_) {
       } finally {
-        if (mounted) setState(() => _busy = false);
+        if (mounted && seq == _seq) setState(() => _busy = false);
       }
     });
   }
@@ -194,6 +216,14 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
               ),
             ),
           ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _busy ? null : _pin,
+              icon: const Icon(Icons.push_pin_outlined, size: 18, color: Color(0xFF298341)),
+              label: const Text('Drop a pin on the map', style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF298341), fontWeight: FontWeight.w600)),
+            ),
+          ),
           if (_busy) const LinearProgressIndicator(color: Color(0xFF298341), minHeight: 2),
           Expanded(
             child: ListView(
@@ -204,7 +234,7 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
                   leading: const Icon(Icons.place_outlined),
                   title: Text(name, style: const TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.w600)),
                   subtitle: Text(addr, style: const TextStyle(fontFamily: 'Montserrat', fontSize: 12)),
-                  onTap: () => Navigator.pop(context, {...p, 'label': addr.isNotEmpty && addr != name ? '$name, $addr' : name}),
+                  onTap: _busy ? null : () => _choose(p),
                 );
               }).toList(),
             ),

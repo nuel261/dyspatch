@@ -19,7 +19,9 @@ import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  /// Set when shown as a Home tab: back goes to the Home tab.
+  final VoidCallback? onBack;
+  const ProfileScreen({super.key, this.onBack});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -123,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => Navigator.maybePop(context),
+                      onTap: () => widget.onBack != null ? widget.onBack!() : Navigator.maybePop(context),
                       child: Container(
                         decoration: BoxDecoration(
                           color: Theme.of(

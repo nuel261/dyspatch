@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const VERSION = 3;
+    private const VERSION = 4;
 
     public static function ensure(): void
     {
@@ -36,6 +36,10 @@ final class Schema
             $cols = array_column(DB::all('SHOW COLUMNS FROM riders'), 'Field');
             if (!in_array('join_type', $cols, true)) DB::query("ALTER TABLE riders ADD COLUMN join_type ENUM('individual','student','fleet') NOT NULL DEFAULT 'individual' AFTER rating_count");
             if (!in_array('profile_extra', $cols, true)) DB::query('ALTER TABLE riders ADD COLUMN profile_extra JSON NULL AFTER join_type');
+            // v4: landmark / directions notes for addresses maps can't find.
+            $oc = array_column(DB::all('SHOW COLUMNS FROM orders'), 'Field');
+            if (!in_array('pickup_note', $oc, true)) DB::query('ALTER TABLE orders ADD COLUMN pickup_note VARCHAR(255) NULL AFTER pickup_lng');
+            if (!in_array('dropoff_note', $oc, true)) DB::query('ALTER TABLE orders ADD COLUMN dropoff_note VARCHAR(255) NULL AFTER dropoff_lng');
             Website::seedDefaults();
             Blog::seed();
             @mkdir(dirname($flag), 0775, true);

@@ -246,6 +246,19 @@ route('GET', '/places/search', function () {
     ok(Geo::search((string) ($in['q'] ?? ''), isset($in['lat']) ? (float) $in['lat'] : null, isset($in['lng']) ? (float) $in['lng'] : null));
 });
 
+route('GET', '/places/autocomplete', function () {
+    $in = input();
+    ok(Geo::autocomplete((string) ($in['q'] ?? ''), isset($in['session']) ? (string) $in['session'] : null));
+});
+
+route('GET', '/places/details', function () {
+    $in = input();
+    $d = Geo::details((string) req('place_id'), isset($in['session']) ? (string) $in['session'] : null);
+    if (!$d) throw new ApiException("Couldn't get that place's location. Try another result or drop a pin.", 422);
+    $zone = Geo::zoneFor($d['lat'], $d['lng']);
+    ok($d + ['zone' => $zone ? ['name' => $zone['name'], 'code' => $zone['code'], 'is_live' => (bool) $zone['is_live']] : null]);
+});
+
 route('GET', '/places/reverse', function () {
     $lat = (float) req('lat');
     $lng = (float) req('lng');
@@ -776,8 +789,8 @@ route('GET', '/rider/offers', function () {
         $o = Orders::find((int) $f['order_id']);
         return ['offer_id' => (int) $f['id'], 'order_id' => (int) $o['id'], 'expires_in' => max(0, strtotime($f['expires_at']) - time()),
             'distance_to_pickup_km' => (float) $f['distance_km'], 'trip_km' => (float) $o['distance_km'], 'earning_kobo' => (int) $o['rider_earning_kobo'],
-            'pickup' => ['address' => $o['pickup_address'], 'lat' => (float) $o['pickup_lat'], 'lng' => (float) $o['pickup_lng']],
-            'dropoff' => ['address' => $o['dropoff_address'], 'lat' => (float) $o['dropoff_lat'], 'lng' => (float) $o['dropoff_lng']],
+            'pickup' => ['address' => $o['pickup_address'], 'lat' => (float) $o['pickup_lat'], 'lng' => (float) $o['pickup_lng'], 'note' => $o['pickup_note'] ?? null],
+            'dropoff' => ['address' => $o['dropoff_address'], 'lat' => (float) $o['dropoff_lat'], 'lng' => (float) $o['dropoff_lng'], 'note' => $o['dropoff_note'] ?? null],
             'package_type' => $o['package_type'], 'payment_method' => $o['payment_method'], 'fee_kobo' => (int) $o['fee_kobo']];
     }, DB::all("SELECT * FROM order_offers WHERE rider_id = ? AND status = 'offered' AND expires_at > NOW()", [$r['id']])));
 });

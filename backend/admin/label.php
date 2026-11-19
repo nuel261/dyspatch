@@ -36,7 +36,7 @@ $total = count($items);
     <div class="hd"><img src="../assets/img/logo-mark.svg" alt=""> Dyspatch <span><?= e($o['delivery_type']) ?></span></div>
     <div class="row"><div><div class="k">Item code</div><div class="code"><?= e($it['item_code']) ?></div><div class="k" style="margin-top:2mm">Order · <?= e($o['order_no']) ?> · parcel <?= $n + 1 ?> of <?= $total ?></div></div>
       <div class="qr" data-qr="<?= e(site_url('track?id=' . urlencode($it['item_code']))) ?>"></div></div>
-    <div class="box"><div class="k">Deliver to</div><div class="v" style="font-size:15px"><?= e($o['recipient_name']) ?> · <?= e($o['recipient_phone']) ?></div><div class="v" style="font-weight:500"><?= e($o['dropoff_address']) ?></div></div>
+    <div class="box"><div class="k">Deliver to</div><div class="v" style="font-size:15px"><?= e($o['recipient_name']) ?> · <?= e($o['recipient_phone']) ?></div><div class="v" style="font-weight:500"><?= e($o['dropoff_address']) ?></div><?php if (!empty($o['dropoff_note'])): ?><div class="v" style="font-weight:500">Landmark: <?= e($o['dropoff_note']) ?></div><?php endif; ?></div>
     <div><div class="k">From</div><div class="v" style="font-weight:500"><?= e(($o['sender_name'] ?: 'Sender') . ' · ' . $o['pickup_address']) ?></div></div>
     <div class="row"><div><div class="k">Contents</div><div class="v"><?= e($it['description']) ?> × <?= (int) $it['quantity'] ?></div></div><div style="flex:0 0 auto"><div class="k">Weight</div><div class="v"><?= $it['weight_kg'] !== null ? e($it['weight_kg']) . ' kg' : '—' ?></div></div></div>
     <div class="ft"><span>Track at <?= e(parse_url(site_url(), PHP_URL_HOST)) ?>/track</span><span><?= date('d M Y', strtotime($o['created_at'])) ?></span></div>
